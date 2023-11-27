@@ -28,7 +28,7 @@
         };
 
         packages.default = pkgs.rustPlatform.buildRustPackage rec {
-          name = "cch23-variasuit"; # Same that is in Cargo.toml
+          name = "cch23-variasuit32"; # Same that is in Cargo.toml
 
           src = ./.;
 
