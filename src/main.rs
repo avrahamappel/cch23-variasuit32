@@ -1,3 +1,6 @@
+use std::ffi::OsStr;
+use std::path::PathBuf;
+
 use rocket::{get, routes, Responder};
 
 #[get("/")]
@@ -18,9 +21,14 @@ fn fake_error() -> Error {
     }
 }
 
-#[get("/1/<num1>/<num2>")]
-fn exclusive_cube(num1: u32, num2: u32) -> String {
-    (num1 ^ num2).pow(3).to_string()
+#[get("/1/<nums..>")]
+fn exclusive_cube(nums: PathBuf) -> String {
+    nums.iter()
+        .filter_map(OsStr::to_str)
+        .filter_map(|s| s.parse::<u32>().ok())
+        .fold(0, |acc, num| acc ^ num)
+        .pow(3)
+        .to_string()
 }
 
 #[shuttle_runtime::main]
