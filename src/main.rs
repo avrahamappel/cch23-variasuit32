@@ -46,7 +46,7 @@ struct Reindeer<'r> {
     height: u32,
     antler_width: u32,
     snow_magic_power: u32,
-    #[serde(alias = "cAnD13s_3ATeN-yesT3rdAy")]
+    #[serde(rename = "cAnD13s_3ATeN-yesT3rdAy")]
     candies_eaten: u32,
     favorite_food: &'r str,
 }
@@ -109,13 +109,29 @@ fn reindeer_candy(reindeers: Json<Vec<Reindeer<'_>>>) -> Json<Winners> {
 #[serde(crate = "rocket::serde")]
 struct ElfCount {
     elf: usize,
+    #[serde(rename = "elf on a shelf")]
+    on_shelf: usize,
+    #[serde(rename = "shelf with no elf on it")]
+    shelf_no_elf: usize,
 }
 
 impl From<String> for ElfCount {
     fn from(elfstring: String) -> Self {
         let elf = elfstring.matches("elf").count();
+        let on_shelf = elfstring.matches("elf on a shelf").count();
+        let shelf_no_elf = elfstring
+            .match_indices("shelf")
+            .filter(|(i, _)| {
+                let prefix = "elf on a ";
+                &elfstring[(i - prefix.len())..*i] != prefix
+            })
+            .count();
 
-        Self { elf }
+        Self {
+            elf,
+            on_shelf,
+            shelf_no_elf,
+        }
     }
 }
 
