@@ -105,6 +105,25 @@ fn reindeer_candy(reindeers: Json<Vec<Reindeer<'_>>>) -> Json<Winners> {
     Json(Winners::from(reindeers.deref().as_slice()))
 }
 
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct ElfCount {
+    elf: usize,
+}
+
+impl From<String> for ElfCount {
+    fn from(elfstring: String) -> Self {
+        let elf = elfstring.matches("elf").count();
+
+        Self { elf }
+    }
+}
+
+#[post("/6", data = "<elfstring>")]
+fn elf_count(elfstring: String) -> Json<ElfCount> {
+    Json(ElfCount::from(elfstring))
+}
+
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
 async fn main() -> shuttle_rocket::ShuttleRocket {
@@ -115,7 +134,8 @@ async fn main() -> shuttle_rocket::ShuttleRocket {
             fake_error,
             exclusive_cube,
             reindeer_cheer,
-            reindeer_candy
+            reindeer_candy,
+            elf_count
         ],
     );
 
