@@ -2,13 +2,12 @@
   description = "Rust Template";
 
   inputs = {
-    nixpkgs.url = github:NixOS/nixpkgs/nixos-unstable;
-    flake-utils.url = github:numtide/flake-utils;
-
-    rust-overlay.url = github:oxalica/rust-overlay;
+    nixpkgs.url = "github:NixOS/nixpkgs/07af2a322744d7a791f6e7424fc6e81eb6877a95";
+    flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
+  outputs = { nixpkgs, rust-overlay, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -22,12 +21,13 @@
             rust-bin.stable.latest.default
             rust-analyzer
             cargo-shuttle
+            cargo-watch
           ];
 
-          buildInputs = with pkgs; [ ];
+          buildInputs = [ ];
         };
 
-        packages.default = pkgs.rustPlatform.buildRustPackage rec {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
           name = "cch23-variasuit32"; # Same that is in Cargo.toml
 
           src = ./.;
