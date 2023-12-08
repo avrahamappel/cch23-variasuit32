@@ -9,7 +9,7 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
-use rocket::serde::json::Json;
+use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Request, Responder};
 
@@ -185,6 +185,67 @@ fn cookie_recipe(cookie_header: CookieHeader) -> String {
     cookie_header.value
 }
 
+#[derive(Deserialize, Serialize)]
+#[serde(crate = "rocket::serde")]
+struct Ingredients {
+    flour: u32,
+    sugar: u32,
+    butter: u32,
+    #[serde(rename = "baking powder")]
+    baking_powder: u32,
+    #[serde(rename = "chocolate chips")]
+    chocolate_chips: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct Recipe {
+    recipe: Ingredients,
+    pantry: Ingredients,
+}
+
+impl Recipe {
+    fn bake(mut self) -> AfterBake {
+        let mut cookies = 0;
+
+        while self.pantry.flour >= self.recipe.flour
+            && self.pantry.sugar >= self.recipe.sugar
+            && self.pantry.butter >= self.recipe.butter
+            && self.pantry.baking_powder >= self.recipe.baking_powder
+            && self.pantry.chocolate_chips >= self.recipe.chocolate_chips
+        {
+            cookies += 1;
+
+            self.pantry.flour -= self.recipe.flour;
+            self.pantry.sugar -= self.recipe.sugar;
+            self.pantry.butter -= self.recipe.butter;
+            self.pantry.baking_powder -= self.recipe.baking_powder;
+            self.pantry.chocolate_chips -= self.recipe.chocolate_chips;
+        }
+
+        AfterBake {
+            cookies,
+            pantry: self.pantry,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct AfterBake {
+    cookies: u32,
+    pantry: Ingredients,
+}
+
+#[get("/7/bake")]
+fn bake_cookies(header: CookieHeader) -> Result<Json<AfterBake>, Error> {
+    let recipe: Recipe = serde_json::from_str(&header.value).map_err(|_| Error {
+        message: "Invalid JSON",
+    })?;
+
+    Ok(Json(recipe.bake()))
+}
+
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
 async fn main() -> shuttle_rocket::ShuttleRocket {
@@ -197,7 +258,8 @@ async fn main() -> shuttle_rocket::ShuttleRocket {
             reindeer_cheer,
             reindeer_candy,
             elf_count,
-            cookie_recipe
+            cookie_recipe,
+            bake_cookies
         ],
     );
 
