@@ -1,6 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::no_effect_underscore_binding)]
 
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -185,17 +186,7 @@ fn cookie_recipe(cookie_header: CookieHeader) -> String {
     cookie_header.value
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(crate = "rocket::serde")]
-struct Ingredients {
-    flour: u32,
-    sugar: u32,
-    butter: u32,
-    #[serde(rename = "baking powder")]
-    baking_powder: u32,
-    #[serde(rename = "chocolate chips")]
-    chocolate_chips: u32,
-}
+type Ingredients = HashMap<String, u32>;
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -208,19 +199,17 @@ impl Recipe {
     fn bake(mut self) -> AfterBake {
         let mut cookies = 0;
 
-        while self.pantry.flour >= self.recipe.flour
-            && self.pantry.sugar >= self.recipe.sugar
-            && self.pantry.butter >= self.recipe.butter
-            && self.pantry.baking_powder >= self.recipe.baking_powder
-            && self.pantry.chocolate_chips >= self.recipe.chocolate_chips
+        while self
+            .pantry
+            .iter()
+            .all(|(ing, amt)| self.recipe.get(ing).is_some_and(|r_amt| amt >= r_amt))
         {
             cookies += 1;
 
-            self.pantry.flour -= self.recipe.flour;
-            self.pantry.sugar -= self.recipe.sugar;
-            self.pantry.butter -= self.recipe.butter;
-            self.pantry.baking_powder -= self.recipe.baking_powder;
-            self.pantry.chocolate_chips -= self.recipe.chocolate_chips;
+            for (ing, amt) in &self.recipe {
+                let p_ing = self.pantry.get_mut(ing).unwrap();
+                *p_ing -= amt;
+            }
         }
 
         AfterBake {
