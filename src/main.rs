@@ -14,9 +14,24 @@ use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Request, Responder};
 
+#[cfg(test)]
+macro_rules! test_client {
+    () => {
+        rocket::local::blocking::Client::tracked(rocket()).unwrap()
+    };
+}
+
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
+}
+
+#[cfg(test)]
+#[test]
+fn index_test() {
+    let client = test_client!();
+    let response = client.get("/").dispatch();
+    assert_eq!(Status::Ok, response.status());
 }
 
 #[derive(Responder, Debug)]
@@ -32,6 +47,14 @@ fn fake_error() -> Error {
     }
 }
 
+#[cfg(test)]
+#[test]
+fn fake_error_test() {
+    let client = test_client!();
+    let response = client.get("/-1/error").dispatch();
+    assert_eq!(Status::InternalServerError, response.status());
+}
+
 #[get("/1/<nums..>")]
 fn exclusive_cube(nums: PathBuf) -> String {
     nums.iter()
@@ -40,6 +63,16 @@ fn exclusive_cube(nums: PathBuf) -> String {
         .fold(0, |acc, num| acc ^ num)
         .pow(3)
         .to_string()
+}
+
+#[cfg(test)]
+#[test]
+fn exclusive_cube_test() {
+    for (expected, url) in [("1728", "/1/4/8"), ("1000", "/1/10"), ("27", "/1/4/5/8/10")] {
+        let client = test_client!();
+        let response = client.get(url).dispatch();
+        assert_eq!(expected, response.into_string().unwrap());
+    }
 }
 
 #[derive(Deserialize)]
@@ -235,10 +268,8 @@ fn bake_cookies(header: CookieHeader) -> Result<Json<AfterBake>, Error> {
     Ok(Json(recipe.bake()))
 }
 
-#[allow(clippy::unused_async)]
-#[shuttle_runtime::main]
-async fn main() -> shuttle_rocket::ShuttleRocket {
-    let rocket = rocket::build().mount(
+fn rocket() -> rocket::Rocket<rocket::Build> {
+    rocket::build().mount(
         "/",
         routes![
             index,
@@ -250,7 +281,11 @@ async fn main() -> shuttle_rocket::ShuttleRocket {
             cookie_recipe,
             bake_cookies
         ],
-    );
+    )
+}
 
-    Ok(rocket.into())
+#[allow(clippy::unused_async)]
+#[shuttle_runtime::main]
+async fn main() -> shuttle_rocket::ShuttleRocket {
+    Ok(rocket().into())
 }
