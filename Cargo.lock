@@ -233,6 +233,7 @@ dependencies = [
 name = "cch23-variasuit32"
 version = "1.0.0"
 dependencies = [
+ "base64",
  "rocket",
  "shuttle-rocket",
  "shuttle-runtime",

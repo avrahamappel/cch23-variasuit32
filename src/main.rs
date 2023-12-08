@@ -5,16 +5,20 @@ use std::ffi::OsStr;
 use std::ops::Deref;
 use std::path::PathBuf;
 
+use base64::engine::general_purpose;
+use base64::Engine;
+use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{get, post, routes, Responder};
+use rocket::{get, post, routes, Request, Responder};
 
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
 }
 
-#[derive(Responder)]
+#[derive(Responder, Debug)]
 #[response(status = 500)]
 struct Error {
     message: &'static str,
@@ -140,6 +144,37 @@ fn elf_count(elfstring: String) -> Json<ElfCount> {
     Json(ElfCount::from(elfstring))
 }
 
+struct CookieHeader<'c> {
+    value: &'c str,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for CookieHeader<'r> {
+    type Error = Error;
+
+    async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        match req.headers().get_one("Cookie") {
+            Some(h) if &h[0..7] == "recipe=" => Outcome::Success(CookieHeader { value: &h[7..] }),
+            _ => Outcome::Error((
+                Status::BadRequest,
+                Error {
+                    message: "Missing or invalid `Cookie` header",
+                },
+            )),
+        }
+    }
+}
+
+#[get("/7/decode")]
+fn cookie_recipe(cookie_header: CookieHeader) -> String {
+    String::from_utf8_lossy(
+        &general_purpose::STANDARD
+            .decode(cookie_header.value)
+            .unwrap(),
+    )
+    .into()
+}
+
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
 async fn main() -> shuttle_rocket::ShuttleRocket {
@@ -151,7 +186,8 @@ async fn main() -> shuttle_rocket::ShuttleRocket {
             exclusive_cube,
             reindeer_cheer,
             reindeer_candy,
-            elf_count
+            elf_count,
+            cookie_recipe
         ],
     );
 
