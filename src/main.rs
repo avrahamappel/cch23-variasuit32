@@ -302,6 +302,26 @@ fn cookie_recipe(cookie_header: CookieHeader) -> String {
     cookie_header.value
 }
 
+#[cfg(test)]
+#[test]
+fn cookie_recipe_test() {
+    use rocket::http::Header;
+
+    let client = test_client!();
+    let response = client
+        .get("/7/decode")
+        .header(Header::new(
+            "Cookie",
+            "recipe=eyJmbG91ciI6MTAwLCJjaG9jb2xhdGUgY2hpcHMiOjIwfQ==",
+        ))
+        .dispatch();
+
+    assert_eq!(
+        r#"{"flour":100,"chocolate chips":20}"#,
+        response.into_string().unwrap()
+    );
+}
+
 type Ingredients = HashMap<String, u32>;
 
 #[derive(Deserialize)]
@@ -349,6 +369,31 @@ fn bake_cookies(header: CookieHeader) -> Result<Json<AfterBake>, Error> {
     })?;
 
     Ok(Json(recipe.bake()))
+}
+
+#[cfg(test)]
+#[test]
+fn bake_cookies_test() {
+    use rocket::http::Header;
+
+    let client = test_client!();
+    let response = client.get("/7/bake").header(Header::new("Cookie", "recipe=eyJyZWNpcGUiOnsiZmxvdXIiOjk1LCJzdWdhciI6NTAsImJ1dHRlciI6MzAsImJha2luZyBwb3dkZXIiOjEwLCJjaG9jb2xhdGUgY2hpcHMiOjUwfSwicGFudHJ5Ijp7ImZsb3VyIjozODUsInN1Z2FyIjo1MDcsImJ1dHRlciI6MjEyMiwiYmFraW5nIHBvd2RlciI6ODY1LCJjaG9jb2xhdGUgY2hpcHMiOjQ1N319")).dispatch();
+
+    let body = response.into_string().unwrap();
+
+    for fragment in [
+        r#"{"cookies":4,"pantry":{"#,
+        r#""flour":5"#,
+        r#""butter":2002"#,
+        r#""baking powder":825"#,
+        r#""chocolate chips":257"#,
+        r#""sugar":307"#,
+    ] {
+        assert!(
+            body.contains(fragment),
+            "Failed asserting that '{body}' contains '{fragment}'"
+        );
+    }
 }
 
 fn rocket() -> rocket::Rocket<rocket::Build> {
