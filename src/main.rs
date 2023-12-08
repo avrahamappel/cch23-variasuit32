@@ -377,22 +377,33 @@ fn bake_cookies_test() {
     use rocket::http::Header;
 
     let client = test_client!();
-    let response = client.get("/7/bake").header(Header::new("Cookie", "recipe=eyJyZWNpcGUiOnsiZmxvdXIiOjk1LCJzdWdhciI6NTAsImJ1dHRlciI6MzAsImJha2luZyBwb3dkZXIiOjEwLCJjaG9jb2xhdGUgY2hpcHMiOjUwfSwicGFudHJ5Ijp7ImZsb3VyIjozODUsInN1Z2FyIjo1MDcsImJ1dHRlciI6MjEyMiwiYmFraW5nIHBvd2RlciI6ODY1LCJjaG9jb2xhdGUgY2hpcHMiOjQ1N319")).dispatch();
+
+    for (expected, header) in [
+        (vec![
+            r#""cookies":4"#,
+            r#""flour":5"#,
+            r#""butter":2002"#,
+            r#""baking powder":825"#,
+            r#""chocolate chips":257"#,
+            r#""sugar":307"#,
+        ], "recipe=eyJyZWNpcGUiOnsiZmxvdXIiOjk1LCJzdWdhciI6NTAsImJ1dHRlciI6MzAsImJha2luZyBwb3dkZXIiOjEwLCJjaG9jb2xhdGUgY2hpcHMiOjUwfSwicGFudHJ5Ijp7ImZsb3VyIjozODUsInN1Z2FyIjo1MDcsImJ1dHRlciI6MjEyMiwiYmFraW5nIHBvd2RlciI6ODY1LCJjaG9jb2xhdGUgY2hpcHMiOjQ1N319"),
+        (vec![
+            r#""cookies":0"#,
+            r#""cobblestone":64"#,
+            r#""stick":4"#,
+        ], "recipe=eyJyZWNpcGUiOnsic2xpbWUiOjl9LCJwYW50cnkiOnsiY29iYmxlc3RvbmUiOjY0LCJzdGljayI6IDR9fQ==")
+    ] {
+        eprintln!("{header}");
+    let response = client.get("/7/bake").header(Header::new("Cookie", header)).dispatch();
 
     let body = response.into_string().unwrap();
 
-    for fragment in [
-        r#"{"cookies":4,"pantry":{"#,
-        r#""flour":5"#,
-        r#""butter":2002"#,
-        r#""baking powder":825"#,
-        r#""chocolate chips":257"#,
-        r#""sugar":307"#,
-    ] {
+    for fragment in expected {
         assert!(
             body.contains(fragment),
             "Failed asserting that '{body}' contains '{fragment}'"
         );
+    }
     }
 }
 
