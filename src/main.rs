@@ -144,35 +144,45 @@ fn elf_count(elfstring: String) -> Json<ElfCount> {
     Json(ElfCount::from(elfstring))
 }
 
-struct CookieHeader<'c> {
-    value: &'c str,
+struct CookieHeader {
+    value: String,
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for CookieHeader<'r> {
+impl<'r> FromRequest<'r> for CookieHeader {
     type Error = Error;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        match req.headers().get_one("Cookie") {
-            Some(h) if &h[0..7] == "recipe=" => Outcome::Success(CookieHeader { value: &h[7..] }),
-            _ => Outcome::Error((
+        let error_outcome = || {
+            Outcome::Error((
                 Status::BadRequest,
                 Error {
                     message: "Missing or invalid `Cookie` header",
                 },
-            )),
+            ))
+        };
+
+        if let Some(h) = req.headers().get_one("Cookie") {
+            if &h[0..7] != "recipe=" {
+                return error_outcome();
+            }
+
+            let recipe = &h[7..];
+
+            if let Ok(bytes) = general_purpose::STANDARD.decode(recipe) {
+                let value = String::from_utf8_lossy(&bytes).into_owned();
+
+                return Outcome::Success(CookieHeader { value });
+            }
         }
+
+        error_outcome()
     }
 }
 
 #[get("/7/decode")]
 fn cookie_recipe(cookie_header: CookieHeader) -> String {
-    String::from_utf8_lossy(
-        &general_purpose::STANDARD
-            .decode(cookie_header.value)
-            .unwrap(),
-    )
-    .into()
+    cookie_header.value
 }
 
 #[allow(clippy::unused_async)]
