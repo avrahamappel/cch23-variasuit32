@@ -24,7 +24,7 @@
             cargo-watch
           ];
 
-          buildInputs = [ ];
+          buildInputs = [ (pkgs.lib.optional pkgs.stdenv.isDarwin pkgs.darwin.apple_sdk.frameworks.SystemConfiguration) ];
         };
 
         packages.default = pkgs.rustPlatform.buildRustPackage {

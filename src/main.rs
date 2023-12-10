@@ -13,6 +13,8 @@ use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Request, Responder};
+use rustemon::client::RustemonClient;
+use rustemon::pokemon::pokemon;
 
 #[cfg(test)]
 macro_rules! test_client {
@@ -405,6 +407,28 @@ fn bake_cookies_test() {
     }
 }
 
+#[get("/8/weight/<id>")]
+async fn pokemon_weight(id: i64) -> Result<String, Error> {
+    let client = RustemonClient::default();
+    let pkm = pokemon::get_by_id(id, &client).await.map_err(|_| Error {
+        message: "Something went wrong",
+    })?;
+
+    #[allow(clippy::cast_precision_loss)]
+    let kg_weight = (pkm.weight as f64) / 10.0;
+
+    Ok(kg_weight.to_string())
+}
+
+#[cfg(test)]
+#[test]
+fn pokemon_weight_test() {
+    let client = test_client!();
+    let response = client.get("/8/weight/25").dispatch();
+
+    assert_eq!("6", response.into_string().unwrap());
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
     rocket::build().mount(
         "/",
@@ -416,7 +440,8 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
             reindeer_candy,
             elf_count,
             cookie_recipe,
-            bake_cookies
+            bake_cookies,
+            pokemon_weight
         ],
     )
 }

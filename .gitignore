@@ -6,3 +6,6 @@ result-*
 
 # Misc
 .direnv
+
+# Rustemon cache
+/http-cacache/
