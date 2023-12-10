@@ -394,16 +394,16 @@ fn bake_cookies_test() {
         ], "recipe=eyJyZWNpcGUiOnsic2xpbWUiOjl9LCJwYW50cnkiOnsiY29iYmxlc3RvbmUiOjY0LCJzdGljayI6IDR9fQ==")
     ] {
         eprintln!("{header}");
-    let response = client.get("/7/bake").header(Header::new("Cookie", header)).dispatch();
+        let response = client.get("/7/bake").header(Header::new("Cookie", header)).dispatch();
 
-    let body = response.into_string().unwrap();
+        let body = response.into_string().unwrap();
 
-    for fragment in expected {
-        assert!(
-            body.contains(fragment),
-            "Failed asserting that '{body}' contains '{fragment}'"
-        );
-    }
+        for fragment in expected {
+            assert!(
+                body.contains(fragment),
+                "Failed asserting that '{body}' contains '{fragment}'"
+            );
+        }
     }
 }
 
