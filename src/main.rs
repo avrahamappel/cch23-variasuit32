@@ -432,6 +432,27 @@ fn pokemon_weight_test() {
     assert_eq!("6", response.into_string().unwrap());
 }
 
+#[get("/8/drop/<id>")]
+async fn pokemon_drop(id: i64) -> Result<String, Error> {
+    let mass = pokemon_weight_kg(id).await?;
+    let height = 10.0;
+    let gravitational_acceleration = 9.825;
+    // Thanks ChatGPT for these formulas
+    let velocity = (2.0f64 * height * gravitational_acceleration).sqrt();
+    let momentum = velocity * mass;
+
+    Ok(momentum.to_string())
+}
+
+#[cfg(test)]
+#[test]
+fn pokemon_drop_test() {
+    let client = test_client!();
+    let response = client.get("/8/drop/25").dispatch();
+
+    assert_eq!("84.10707461325713", response.into_string().unwrap());
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
     rocket::build().mount(
         "/",
@@ -444,7 +465,8 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
             elf_count,
             cookie_recipe,
             bake_cookies,
-            pokemon_weight
+            pokemon_weight,
+            pokemon_drop
         ],
     )
 }
