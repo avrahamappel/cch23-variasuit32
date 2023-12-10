@@ -408,17 +408,19 @@ fn bake_cookies_test() {
     }
 }
 
-#[get("/8/weight/<id>")]
-async fn pokemon_weight(id: i64) -> Result<String, Error> {
+async fn pokemon_weight_kg(id: i64) -> Result<f64, Error> {
     let client = RustemonClient::default();
     let pkm = pokemon::get_by_id(id, &client).await.map_err(|_| Error {
         message: "Something went wrong",
     })?;
 
     #[allow(clippy::cast_precision_loss)]
-    let kg_weight = (pkm.weight as f64) / 10.0;
+    Ok((pkm.weight as f64) / 10.0)
+}
 
-    Ok(kg_weight.to_string())
+#[get("/8/weight/<id>")]
+async fn pokemon_weight(id: i64) -> Result<String, Error> {
+    Ok(pokemon_weight_kg(id).await?.to_string())
 }
 
 #[cfg(test)]
