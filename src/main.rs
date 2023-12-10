@@ -333,18 +333,16 @@ struct Recipe {
 
 impl Recipe {
     fn bake(mut self) -> AfterBake {
-        let mut cookies = 0;
-
-        while self
-            .pantry
+        let cookies = self
+            .recipe
             .iter()
-            .all(|(ing, amt)| self.recipe.get(ing).is_some_and(|r_amt| amt >= r_amt))
-        {
-            cookies += 1;
+            .map(|(ing, r_amt)| self.pantry.get(ing).map_or(0, |p_amt| p_amt / r_amt))
+            .min()
+            .unwrap_or(0);
 
-            for (ing, amt) in &self.recipe {
-                let p_ing = self.pantry.get_mut(ing).unwrap();
-                *p_ing -= amt;
+        for (ing, p_amt) in &mut self.pantry {
+            if let Some(r_amt) = self.recipe.get(ing) {
+                *p_amt -= r_amt * cookies;
             }
         }
 
