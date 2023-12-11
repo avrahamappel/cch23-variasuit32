@@ -232,13 +232,14 @@ struct ElfCount {
 impl From<String> for ElfCount {
     fn from(elfstring: String) -> Self {
         let elf = elfstring.matches("elf").count();
-        let on_shelf = elfstring.matches("elf on a shelf").count();
+        let prefix = "elf on a ";
+        let on_shelf = elfstring
+            .match_indices("shelf")
+            .filter(|(i, _)| &elfstring[(i - prefix.len())..*i] == prefix)
+            .count();
         let shelf_no_elf = elfstring
             .match_indices("shelf")
-            .filter(|(i, _)| {
-                let prefix = "elf on a ";
-                &elfstring[(i - prefix.len())..*i] != prefix
-            })
+            .filter(|(i, _)| &elfstring[(i - prefix.len())..*i] != prefix)
             .count();
 
         Self {
@@ -261,7 +262,8 @@ fn elf_count_test() {
 
     for (expected, data) in [
         (r#"{"elf":4,"elf on a shelf":0,"shelf with no elf on it":1}"#, "The mischievous elf peeked out from behind the toy workshop, and another elf joined in the festive dance. Look, there is also an elf on that shelf!"),
-        (r#"{"elf":5,"elf on a shelf":1,"shelf with no elf on it":1}"#, "there is an elf on a shelf on an elf. there is also another shelf in Belfast.")
+        (r#"{"elf":5,"elf on a shelf":1,"shelf with no elf on it":1}"#, "there is an elf on a shelf on an elf. there is also another shelf in Belfast."),
+        (r#"{"elf":4,"elf on a shelf":2,"shelf with no elf on it":0}"#, "In Belfast I heard an elf on a shelf on a shelf on a ")
     ] {
         let response = client.post("/6").body(data).dispatch();
 
