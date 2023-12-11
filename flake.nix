@@ -14,6 +14,27 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+
+        inherit (pkgs) lib stdenv;
+        inherit (pkgs.darwin.apple_sdk) frameworks;
+        inherit (pkgs.rustPlatform) buildRustPackage;
+
+        cch23-validator = buildRustPackage rec {
+          pname = "cch23-validator";
+          version = "11.0.0";
+
+          src = pkgs.fetchzip {
+            url = "https://crates.io/api/v1/crates/${pname}/${version}/download";
+            hash = "sha256-hmugvpOMUbLBJdsdAyeIQbXB8ntB4KO1DfqhlGpIY40=";
+            extension = "tar";
+          };
+
+          cargoHash = "sha256-Uh8jKYlcWZvhsVU9mSCcCOnZIPcersmuCxsJyo/UeM4=";
+
+          buildInputs = [
+            (lib.optional stdenv.isDarwin frameworks.SystemConfiguration)
+          ];
+        };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -22,9 +43,12 @@
             rust-analyzer
             cargo-shuttle
             cargo-watch
+            cch23-validator
           ];
 
-          buildInputs = [ (pkgs.lib.optional pkgs.stdenv.isDarwin pkgs.darwin.apple_sdk.frameworks.SystemConfiguration) ];
+          buildInputs = [
+            (lib.optional stdenv.isDarwin frameworks.SystemConfiguration)
+          ];
         };
 
         packages.default = pkgs.rustPlatform.buildRustPackage {
