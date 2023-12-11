@@ -61,7 +61,7 @@ fn fake_error_test() {
 fn exclusive_cube(nums: PathBuf) -> String {
     nums.iter()
         .filter_map(OsStr::to_str)
-        .filter_map(|s| s.parse::<u32>().ok())
+        .filter_map(|s| s.parse::<i32>().ok())
         .fold(0, |acc, num| acc ^ num)
         .pow(3)
         .to_string()
@@ -70,7 +70,12 @@ fn exclusive_cube(nums: PathBuf) -> String {
 #[cfg(test)]
 #[test]
 fn exclusive_cube_test() {
-    for (expected, url) in [("1728", "/1/4/8"), ("1000", "/1/10"), ("27", "/1/4/5/8/10")] {
+    for (expected, url) in [
+        ("1728", "/1/4/8"),
+        ("1000", "/1/10"),
+        ("27", "/1/4/5/8/10"),
+        ("-64", "/1/-3/1"),
+    ] {
         let client = test_client!();
         let response = client.get(url).dispatch();
         assert_eq!(expected, response.into_string().unwrap());
