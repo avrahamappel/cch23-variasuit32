@@ -332,7 +332,7 @@ fn cookie_recipe_test() {
     );
 }
 
-type Ingredients = HashMap<String, u32>;
+type Ingredients = HashMap<String, u64>;
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -366,14 +366,19 @@ impl Recipe {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 struct AfterBake {
-    cookies: u32,
+    cookies: u64,
     pantry: Ingredients,
 }
 
 #[get("/7/bake")]
 fn bake_cookies(header: CookieHeader) -> Result<Json<AfterBake>, Error> {
-    let recipe: Recipe = serde_json::from_str(&header.value).map_err(|_| Error {
-        message: "Invalid JSON",
+    let recipe: Recipe = serde_json::from_str(&header.value).map_err(|e| {
+        if cfg!(debug_assertions) {
+            dbg!(e);
+        }
+        Error {
+            message: "Invalid JSON",
+        }
     })?;
 
     Ok(Json(recipe.bake()))
