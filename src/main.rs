@@ -6,6 +6,8 @@ use std::env;
 use std::ffi::OsStr;
 use std::ops::{Add, Deref};
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+use std::time::Instant;
 
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -18,7 +20,7 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{get, post, routes, FromForm, Request, Responder};
+use rocket::{get, post, routes, FromForm, Request, Responder, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
 
@@ -49,23 +51,44 @@ struct Error {
 }
 
 macro_rules! impl_from_error {
-    ($type:ty) => {
+    ($type:ty, $msg:literal) => {
         impl From<$type> for Error {
             fn from(value: $type) -> Self {
                 if cfg!(debug_assertions) {
                     dbg!(value);
                 }
 
-                Self {
-                    message: stringify!($type),
+                Self { message: $msg }
+            }
+        }
+    };
+    ($type:ty, $gen:ty, $msg:literal) => {
+        impl<$gen> From<$type<$gen>> for Error {
+            fn from(value: $type<$gen>) -> Self {
+                if cfg!(debug_assertions) {
+                    dbg!(value);
                 }
+
+                Self { message: $msg }
             }
         }
     };
 }
 
-impl_from_error!(std::io::Error);
-impl_from_error!(image::ImageError);
+impl_from_error!(std::io::Error, "IO error");
+impl_from_error!(image::ImageError, "Error processing image");
+// impl_from_error!(std::sync::PoisonError, T, "Couldn't get lock");
+
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(value: std::sync::PoisonError<T>) -> Self {
+        if cfg!(debug_assertions) {
+            dbg!(value);
+        }
+        Self {
+            message: "Couldn't get lock",
+        }
+    }
+}
 
 #[get("/-1/error")]
 fn fake_error() -> Error {
@@ -547,24 +570,64 @@ async fn count_red_pixels(mut image: Form<Image<'_>>) -> Result<String, Error> {
     }
 }
 
+struct Timekeeper {
+    store: RwLock<HashMap<String, Instant>>,
+}
+
+impl Timekeeper {
+    fn new() -> Self {
+        Self {
+            store: RwLock::new(HashMap::new()),
+        }
+    }
+
+    fn put(&self, string: String) -> Result<(), Error> {
+        self.store.write()?.insert(string, Instant::now());
+        Ok(())
+    }
+
+    fn get(&self, string: String) -> Option<u64> {
+        self.store
+            .read()
+            .ok()?
+            .get(&string)
+            .map(|inst| inst.elapsed().as_secs())
+    }
+}
+
+#[post("/12/save/<string>")]
+fn store_string(timekeeper: &State<Timekeeper>, string: String) -> Result<(), Error> {
+    timekeeper.put(string)?;
+    Ok(())
+}
+
+#[get("/12/load/<string>")]
+fn get_string(timekeeper: &State<Timekeeper>, string: String) -> Option<String> {
+    timekeeper.get(string).map(|u| u.to_string())
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
-    rocket::build().mount(
-        "/",
-        routes![
-            index,
-            fake_error,
-            exclusive_cube,
-            reindeer_cheer,
-            reindeer_candy,
-            elf_count,
-            cookie_recipe,
-            bake_cookies,
-            pokemon_weight,
-            pokemon_drop,
-            assets,
-            count_red_pixels
-        ],
-    )
+    rocket::build()
+        .mount(
+            "/",
+            routes![
+                index,
+                fake_error,
+                exclusive_cube,
+                reindeer_cheer,
+                reindeer_candy,
+                elf_count,
+                cookie_recipe,
+                bake_cookies,
+                pokemon_weight,
+                pokemon_drop,
+                assets,
+                count_red_pixels,
+                store_string,
+                get_string
+            ],
+        )
+        .manage(Timekeeper::new())
 }
 
 #[allow(clippy::unused_async)]
