@@ -2,17 +2,23 @@
 #![allow(clippy::no_effect_underscore_binding)]
 
 use std::collections::HashMap;
+use std::env;
 use std::ffi::OsStr;
-use std::ops::Deref;
-use std::path::PathBuf;
+use std::ops::{Add, Deref};
+use std::path::{Path, PathBuf};
 
 use base64::engine::general_purpose;
 use base64::Engine;
+use image::io::Reader;
+use image::DynamicImage;
+use rocket::form::Form;
+use rocket::fs::NamedFile;
+use rocket::fs::{relative, TempFile};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{get, post, routes, Request, Responder};
+use rocket::{get, post, routes, FromForm, Request, Responder};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
 
@@ -41,6 +47,25 @@ fn index_test() {
 struct Error {
     message: &'static str,
 }
+
+macro_rules! impl_from_error {
+    ($type:ty) => {
+        impl From<$type> for Error {
+            fn from(value: $type) -> Self {
+                if cfg!(debug_assertions) {
+                    dbg!(value);
+                }
+
+                Self {
+                    message: stringify!($type),
+                }
+            }
+        }
+    };
+}
+
+impl_from_error!(std::io::Error);
+impl_from_error!(image::ImageError);
 
 #[get("/-1/error")]
 fn fake_error() -> Error {
@@ -470,6 +495,58 @@ fn pokemon_drop_test() {
     assert_eq!("84.10707461325713", response.into_string().unwrap());
 }
 
+#[get("/11/assets/<path..>")]
+async fn assets(path: PathBuf) -> Option<NamedFile> {
+    let path = Path::new(relative!("assets")).join(path);
+
+    NamedFile::open(path).await.ok()
+}
+
+#[derive(FromForm)]
+struct Image<'f> {
+    image: TempFile<'f>,
+}
+
+#[post("/11/red_pixels", data = "<image>")]
+async fn count_red_pixels(mut image: Form<Image<'_>>) -> Result<String, Error> {
+    let name = image.image.name().unwrap_or("some-image.png");
+    let path = env::temp_dir().join(name);
+    image.image.persist_to(path).await?;
+
+    let img = Reader::open(image.image.path().ok_or(Error {
+        message: "Temp file had no path",
+    })?)?
+    .with_guessed_format()?
+    .decode()?;
+
+    macro_rules! count_pixels {
+        ($rgb_image:ident) => {
+            count_pixels!($rgb_image, saturating_add)
+        };
+        ($rgb_image:ident, $add:ident) => {{
+            let red_pxl_count = $rgb_image
+                .pixels()
+                .filter(|p| {
+                    let [red, green, blue] = p.0;
+                    red > green.$add(blue)
+                })
+                .count();
+
+            Ok(red_pxl_count.to_string())
+        }};
+    }
+
+    match img {
+        DynamicImage::ImageRgb8(rgb_image) => count_pixels!(rgb_image),
+        DynamicImage::ImageRgb16(rgb_image) => count_pixels!(rgb_image),
+        DynamicImage::ImageRgb32F(rgb_image) => count_pixels!(rgb_image, add),
+
+        _ => Err(Error {
+            message: "Image was not RGB",
+        }),
+    }
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
     rocket::build().mount(
         "/",
@@ -483,7 +560,9 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
             cookie_recipe,
             bake_cookies,
             pokemon_weight,
-            pokemon_drop
+            pokemon_drop,
+            assets,
+            count_red_pixels
         ],
     )
 }
