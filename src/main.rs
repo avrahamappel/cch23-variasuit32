@@ -346,7 +346,12 @@ impl Recipe {
         let cookies = self
             .recipe
             .iter()
-            .map(|(ing, r_amt)| self.pantry.get(ing).map_or(0, |p_amt| p_amt / r_amt))
+            .map(|(ing, r_amt)| {
+                self.pantry
+                    .get(ing)
+                    .map_or(0, |p_amt| if *r_amt == 0 { 0 } else { p_amt / r_amt })
+            })
+            .filter(|amt| *amt > 0)
             .min()
             .unwrap_or(0);
 
