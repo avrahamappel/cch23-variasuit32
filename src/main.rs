@@ -23,6 +23,8 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, FromForm, Request, Responder, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
+use ulid::Ulid;
+use uuid::Uuid;
 
 #[cfg(test)]
 macro_rules! test_client {
@@ -77,6 +79,7 @@ macro_rules! impl_from_error {
 
 impl_from_error!(std::io::Error, "IO error");
 impl_from_error!(image::ImageError, "Error processing image");
+impl_from_error!(ulid::DecodeError, "Error decoding ULID");
 // impl_from_error!(std::sync::PoisonError, T, "Couldn't get lock");
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
@@ -606,6 +609,39 @@ fn get_string(timekeeper: &State<Timekeeper>, string: String) -> Option<String> 
     timekeeper.get(string).map(|u| u.to_string())
 }
 
+#[post("/12/ulids", data = "<ulids>")]
+fn ulid2uuid(ulids: Json<Vec<&str>>) -> Result<Json<Vec<String>>, Error> {
+    let try_uuids: Result<Vec<_>, _> = ulids
+        .iter()
+        .map(|s| {
+            Ulid::from_string(s).map(|ulid| {
+                let bytes = ulid.to_bytes();
+                Uuid::from_bytes(bytes).to_string()
+            })
+        })
+        .rev()
+        .collect();
+
+    Ok(Json(try_uuids?))
+}
+
+#[cfg(test)]
+#[test]
+fn ulid2uuid_test() {
+    let client = test_client!();
+    let response = client
+        .post("/12/ulids")
+        .body(
+            r#"["01BJQ0E1C3Z56ABCD0E11HYX4M","01BJQ0E1C3Z56ABCD0E11HYX5N","01BJQ0E1C3Z56ABCD0E11HYX6Q","01BJQ0E1C3Z56ABCD0E11HYX7R","01BJQ0E1C3Z56ABCD0E11HYX8P"]"#,
+        )
+        .dispatch();
+
+    assert_eq!(
+        r#"["015cae07-0583-f94c-a5b1-a070431f7516","015cae07-0583-f94c-a5b1-a070431f74f8","015cae07-0583-f94c-a5b1-a070431f74d7","015cae07-0583-f94c-a5b1-a070431f74b5","015cae07-0583-f94c-a5b1-a070431f7494"]"#,
+        response.into_string().unwrap()
+    );
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .mount(
@@ -624,7 +660,8 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
                 assets,
                 count_red_pixels,
                 store_string,
-                get_string
+                get_string,
+                ulid2uuid
             ],
         )
         .manage(Timekeeper::new())
