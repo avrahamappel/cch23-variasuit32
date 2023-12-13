@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use base64::engine::general_purpose;
 use base64::Engine;
+use chrono::{DateTime, Datelike, Utc, Weekday};
 use image::io::Reader;
 use image::DynamicImage;
 use rocket::form::Form;
@@ -80,6 +81,8 @@ macro_rules! impl_from_error {
 impl_from_error!(std::io::Error, "IO error");
 impl_from_error!(image::ImageError, "Error processing image");
 impl_from_error!(ulid::DecodeError, "Error decoding ULID");
+impl_from_error!(std::num::ParseIntError, "Error parsing integer");
+impl_from_error!(chrono::OutOfRange, "Number out of range of time type");
 // impl_from_error!(std::sync::PoisonError, T, "Couldn't get lock");
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
@@ -642,6 +645,81 @@ fn ulid2uuid_test() {
     );
 }
 
+#[derive(Serialize, Default)]
+#[serde(crate = "rocket::serde")]
+struct UlidsAnalysis {
+    #[serde(rename = "christmas eve")]
+    xmas_eve: usize,
+    weekday: usize,
+    #[serde(rename = "in the future")]
+    future: usize,
+    #[serde(rename = "LSB is 1")]
+    lsb1: usize,
+}
+
+impl UlidsAnalysis {
+    fn new(ulids: &[Ulid], weekday: Weekday) -> Self {
+        ulids.iter().fold(Self::default(), |mut analysis, ulid| {
+            let datetime: DateTime<Utc> = ulid.datetime().into();
+
+            if datetime.month() == 12 && datetime.day() == 24 {
+                analysis.xmas_eve += 1;
+            }
+            if datetime.weekday() == weekday {
+                analysis.weekday += 1;
+            }
+            if datetime > Utc::now() {
+                analysis.future += 1;
+            }
+            if (ulid.random()).trailing_ones() >= 1 {
+                analysis.lsb1 += 1;
+            }
+            analysis
+        })
+    }
+}
+
+#[post("/12/ulids/<weekday>", data = "<ulids>")]
+fn ulids_analyze(weekday: u8, ulids: Json<Vec<&str>>) -> Result<Json<UlidsAnalysis>, Error> {
+    let weekday = Weekday::try_from(weekday)?;
+    let ulids = ulids
+        .iter()
+        .map(|s| Ulid::from_string(s))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Json(UlidsAnalysis::new(&ulids, weekday)))
+}
+
+#[cfg(test)]
+#[test]
+fn ulids_analyze_test() {
+    use serde_json::json;
+
+    let client = test_client!();
+    let response = client
+        .post("/12/ulids/5")
+        .body(
+            json!([
+                "00WEGGF0G0J5HEYXS3D7RWZGV8",
+                "76EP4G39R8JD1N8AQNYDVJBRCF",
+                "018CJ7KMG0051CDCS3B7BFJ3AK",
+                "00Y986KPG0AMGB78RD45E9109K",
+                "010451HTG0NYWMPWCEXG6AJ8F2",
+                "01HH9SJEG0KY16H81S3N1BMXM4",
+                "01HH9SJEG0P9M22Z9VGHH9C8CX",
+                "017F8YY0G0NQA16HHC2QT5JD6X",
+                "03QCPC7P003V1NND3B3QJW72QJ"
+            ])
+            .to_string(),
+        )
+        .dispatch();
+
+    assert_eq!(
+        r#"{"christmas eve":3,"weekday":1,"in the future":2,"LSB is 1":5}"#,
+        response.into_string().unwrap()
+    );
+}
+
 fn rocket() -> rocket::Rocket<rocket::Build> {
     rocket::build()
         .mount(
@@ -661,7 +739,8 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
                 count_red_pixels,
                 store_string,
                 get_string,
-                ulid2uuid
+                ulid2uuid,
+                ulids_analyze
             ],
         )
         .manage(Timekeeper::new())

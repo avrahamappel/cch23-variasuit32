@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 base64 = "0.21.5"
+chrono = "0.4.31"
 image = { version = "0.24.7", features = ["png"] }
 rocket = { version = "0.5.0", features = ["json"] }
 rustemon = "3.2.1"
