@@ -9,8 +9,10 @@ chrono = "0.4.31"
 image = { version = "0.24.7", features = ["png"] }
 rocket = { version = "0.5.0", features = ["json"] }
 rustemon = "3.2.1"
-shuttle-rocket = "0.34.0"
-shuttle-runtime = "0.34.0"
+shuttle-rocket = "0.35.1"
+shuttle-runtime = "0.35.1"
+shuttle-shared-db = { version = "0.35.1", features = ["postgres"] }
+sqlx = { version = "0.7.3", features = ["postgres"] }
 tokio = "1.26.0"
 ulid = "1.1.0"
 uuid = "1.6.1"

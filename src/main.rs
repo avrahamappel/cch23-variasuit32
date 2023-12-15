@@ -15,8 +15,7 @@ use chrono::{DateTime, Datelike, Utc, Weekday};
 use image::io::Reader;
 use image::DynamicImage;
 use rocket::form::Form;
-use rocket::fs::NamedFile;
-use rocket::fs::{relative, TempFile};
+use rocket::fs::{relative, NamedFile, TempFile};
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::{serde_json, Json};
@@ -24,13 +23,14 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, FromForm, Request, Responder, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
+use sqlx::{PgPool, Row};
 use ulid::Ulid;
 use uuid::Uuid;
 
 #[cfg(test)]
 macro_rules! test_client {
     () => {
-        rocket::local::blocking::Client::tracked(rocket()).unwrap()
+        rocket::local::blocking::Client::tracked(rocket(None)).unwrap()
     };
 }
 
@@ -83,6 +83,7 @@ impl_from_error!(image::ImageError, "Error processing image");
 impl_from_error!(ulid::DecodeError, "Error decoding ULID");
 impl_from_error!(std::num::ParseIntError, "Error parsing integer");
 impl_from_error!(chrono::OutOfRange, "Number out of range of time type");
+impl_from_error!(sqlx::Error, "Postgres error");
 // impl_from_error!(std::sync::PoisonError, T, "Couldn't get lock");
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
@@ -720,8 +721,19 @@ fn ulids_analyze_test() {
     );
 }
 
-fn rocket() -> rocket::Rocket<rocket::Build> {
-    rocket::build()
+struct DB {
+    pool: PgPool,
+}
+
+#[get("/13/sql")]
+async fn sql(db: &State<DB>) -> Result<String, Error> {
+    let res = sqlx::query("SELECT 20231213").fetch_one(&db.pool).await?;
+    let int: i32 = res.get(0);
+    Ok(int.to_string())
+}
+
+fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
+    let mut rk = rocket::build()
         .mount(
             "/",
             routes![
@@ -740,14 +752,21 @@ fn rocket() -> rocket::Rocket<rocket::Build> {
                 store_string,
                 get_string,
                 ulid2uuid,
-                ulids_analyze
+                ulids_analyze,
+                sql
             ],
         )
-        .manage(Timekeeper::new())
+        .manage(Timekeeper::new());
+
+    if let Some(pool) = db_pool {
+        rk = rk.manage(DB { pool });
+    }
+
+    rk
 }
 
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
-async fn main() -> shuttle_rocket::ShuttleRocket {
-    Ok(rocket().into())
+async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::ShuttleRocket {
+    Ok(rocket(Some(pool)).into())
 }
