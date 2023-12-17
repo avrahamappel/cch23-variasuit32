@@ -23,7 +23,8 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, FromForm, Request, Responder, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
-use sqlx::{Executor, PgPool, Row};
+use sqlx::prelude::*;
+use sqlx::PgPool;
 use ulid::Ulid;
 use uuid::Uuid;
 
@@ -751,7 +752,7 @@ async fn place_orders(db: &State<DB>, orders: Json<Vec<Order>>) -> Result<(), Er
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, FromRow)]
 #[serde(crate = "rocket::serde")]
 struct OrderTotal {
     total: i64,
@@ -759,11 +760,28 @@ struct OrderTotal {
 
 #[get("/13/orders/total")]
 async fn orders_sum(db: &State<DB>) -> Result<Json<OrderTotal>, Error> {
-    let res = sqlx::query("SELECT SUM(quantity) FROM orders")
+    let res: OrderTotal = sqlx::query_as("SELECT SUM(quantity) AS total FROM orders")
         .fetch_one(&db.pool)
         .await?;
 
-    Ok(Json(OrderTotal { total: res.get(0) }))
+    Ok(Json(res))
+}
+
+#[derive(Serialize, FromRow, Default)]
+#[serde(crate = "rocket::serde")]
+struct OrdersPopular {
+    popular: Option<String>,
+}
+
+#[get("/13/orders/popular")]
+async fn orders_popular(db: &State<DB>) -> Result<Json<OrdersPopular>, Error> {
+    let res: OrdersPopular = sqlx::query_as(
+        "SELECT gift_name AS popular FROM (SELECT gift_name, SUM(quantity) AS total FROM orders GROUP BY gift_name) AS g ORDER BY total DESC LIMIT 1"
+    )
+        .fetch_one(&db.pool)
+        .await
+        .unwrap_or_default();
+    Ok(Json(res))
 }
 
 fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
@@ -790,7 +808,8 @@ fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
                 sql,
                 reset_db,
                 place_orders,
-                orders_sum
+                orders_sum,
+                orders_popular
             ],
         )
         .manage(Timekeeper::new());
