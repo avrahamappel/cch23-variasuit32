@@ -20,7 +20,7 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{get, post, routes, FromForm, Request, Responder, State};
+use rocket::{get, post, routes, FromForm, Request, Route, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
 use sqlx::prelude::*;
@@ -28,77 +28,20 @@ use sqlx::PgPool;
 use ulid::Ulid;
 use uuid::Uuid;
 
+mod common;
+use common::Error;
+mod day_0;
+
 #[cfg(test)]
 macro_rules! test_client {
     () => {
-        rocket::local::blocking::Client::tracked(rocket(None)).unwrap()
+        rocket::local::blocking::Client::tracked(
+            rocket::build()
+                .mount("/", routes())
+                .manage(Timekeeper::new()),
+        )
+        .unwrap()
     };
-}
-
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
-}
-
-#[cfg(test)]
-#[test]
-fn index_test() {
-    let client = test_client!();
-    let response = client.get("/").dispatch();
-    assert_eq!(Status::Ok, response.status());
-}
-
-#[derive(Responder, Debug)]
-#[response(status = 500)]
-struct Error {
-    message: &'static str,
-}
-
-macro_rules! impl_from_error {
-    ($type:ty, $msg:literal) => {
-        impl From<$type> for Error {
-            fn from(value: $type) -> Self {
-                if cfg!(debug_assertions) {
-                    dbg!(value);
-                }
-
-                Self { message: $msg }
-            }
-        }
-    };
-}
-
-impl_from_error!(std::io::Error, "IO error");
-impl_from_error!(image::ImageError, "Error processing image");
-impl_from_error!(ulid::DecodeError, "Error decoding ULID");
-impl_from_error!(std::num::ParseIntError, "Error parsing integer");
-impl_from_error!(chrono::OutOfRange, "Number out of range of time type");
-impl_from_error!(sqlx::Error, "Postgres error");
-
-impl<T> From<std::sync::PoisonError<T>> for Error {
-    fn from(value: std::sync::PoisonError<T>) -> Self {
-        if cfg!(debug_assertions) {
-            dbg!(value);
-        }
-        Self {
-            message: "Couldn't get lock",
-        }
-    }
-}
-
-#[get("/-1/error")]
-fn fake_error() -> Error {
-    Error {
-        message: "This is an error",
-    }
-}
-
-#[cfg(test)]
-#[test]
-fn fake_error_test() {
-    let client = test_client!();
-    let response = client.get("/-1/error").dispatch();
-    assert_eq!(Status::InternalServerError, response.status());
 }
 
 #[get("/1/<nums..>")]
@@ -784,45 +727,38 @@ async fn orders_popular(db: &State<DB>) -> Result<Json<OrdersPopular>, Error> {
     Ok(Json(res))
 }
 
-fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
-    let mut rk = rocket::build()
-        .mount(
-            "/",
-            routes![
-                index,
-                fake_error,
-                exclusive_cube,
-                reindeer_cheer,
-                reindeer_candy,
-                elf_count,
-                cookie_recipe,
-                bake_cookies,
-                pokemon_weight,
-                pokemon_drop,
-                assets,
-                count_red_pixels,
-                store_string,
-                get_string,
-                ulid2uuid,
-                ulids_analyze,
-                sql,
-                reset_db,
-                place_orders,
-                orders_sum,
-                orders_popular
-            ],
-        )
-        .manage(Timekeeper::new());
-
-    if let Some(pool) = db_pool {
-        rk = rk.manage(DB { pool });
-    }
-
-    rk
+fn routes() -> Vec<Route> {
+    routes![
+        exclusive_cube,
+        reindeer_cheer,
+        reindeer_candy,
+        elf_count,
+        cookie_recipe,
+        bake_cookies,
+        pokemon_weight,
+        pokemon_drop,
+        assets,
+        count_red_pixels,
+        store_string,
+        get_string,
+        ulid2uuid,
+        ulids_analyze,
+        // sql,
+        // reset_db,
+        // place_orders,
+        // orders_sum,
+        // orders_popular
+    ]
 }
 
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
 async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::ShuttleRocket {
-    Ok(rocket(Some(pool)).into())
+    let rocket = rocket::build()
+        .mount("/", day_0::routes())
+        .mount("/", routes())
+        .manage(Timekeeper::new())
+        .manage(DB { pool });
+
+    Ok(rocket.into())
 }
