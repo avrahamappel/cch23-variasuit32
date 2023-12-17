@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use rocket::{get, routes, Route};
 
-#[get("/<nums..>")]
+#[get("/1/<nums..>")]
 fn exclusive_cube(nums: PathBuf) -> String {
     nums.iter()
         .filter_map(OsStr::to_str)
