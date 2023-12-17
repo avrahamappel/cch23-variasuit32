@@ -23,7 +23,7 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, FromForm, Request, Responder, State};
 use rustemon::client::RustemonClient;
 use rustemon::pokemon::pokemon;
-use sqlx::{PgPool, Row};
+use sqlx::{Executor, PgPool, Row};
 use ulid::Ulid;
 use uuid::Uuid;
 
@@ -65,17 +65,6 @@ macro_rules! impl_from_error {
             }
         }
     };
-    ($type:ty, $gen:ty, $msg:literal) => {
-        impl<$gen> From<$type<$gen>> for Error {
-            fn from(value: $type<$gen>) -> Self {
-                if cfg!(debug_assertions) {
-                    dbg!(value);
-                }
-
-                Self { message: $msg }
-            }
-        }
-    };
 }
 
 impl_from_error!(std::io::Error, "IO error");
@@ -84,7 +73,6 @@ impl_from_error!(ulid::DecodeError, "Error decoding ULID");
 impl_from_error!(std::num::ParseIntError, "Error parsing integer");
 impl_from_error!(chrono::OutOfRange, "Number out of range of time type");
 impl_from_error!(sqlx::Error, "Postgres error");
-// impl_from_error!(std::sync::PoisonError, T, "Couldn't get lock");
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(value: std::sync::PoisonError<T>) -> Self {
@@ -732,6 +720,52 @@ async fn sql(db: &State<DB>) -> Result<String, Error> {
     Ok(int.to_string())
 }
 
+#[post("/13/reset")]
+async fn reset_db(db: &State<DB>) -> Result<(), Error> {
+    db.pool.execute(include_str!("../db/schema.sql")).await?;
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct Order {
+    id: i32,
+    region_id: i32,
+    gift_name: String,
+    quantity: i32,
+}
+
+#[post("/13/orders", data = "<orders>")]
+async fn place_orders(db: &State<DB>, orders: Json<Vec<Order>>) -> Result<(), Error> {
+    for order in &*orders {
+        sqlx::query(
+            "INSERT INTO orders (id, region_id, gift_name, quantity) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(order.id)
+        .bind(order.region_id)
+        .bind(&order.gift_name)
+        .bind(order.quantity)
+        .execute(&db.pool)
+        .await?;
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+struct OrderTotal {
+    total: i64,
+}
+
+#[get("/13/orders/total")]
+async fn orders_sum(db: &State<DB>) -> Result<Json<OrderTotal>, Error> {
+    let res = sqlx::query("SELECT SUM(quantity) FROM orders")
+        .fetch_one(&db.pool)
+        .await?;
+
+    Ok(Json(OrderTotal { total: res.get(0) }))
+}
+
 fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
     let mut rk = rocket::build()
         .mount(
@@ -753,7 +787,10 @@ fn rocket(db_pool: Option<PgPool>) -> rocket::Rocket<rocket::Build> {
                 get_string,
                 ulid2uuid,
                 ulids_analyze,
-                sql
+                sql,
+                reset_db,
+                place_orders,
+                orders_sum
             ],
         )
         .manage(Timekeeper::new());
