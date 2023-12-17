@@ -14,7 +14,6 @@ fn fake_error() -> Error {
     }
 }
 
-#[cfg(test)]
 pub fn routes() -> Vec<Route> {
     routes![index, fake_error]
 }

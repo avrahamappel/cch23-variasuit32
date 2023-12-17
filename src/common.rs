@@ -1,7 +1,7 @@
 use rocket::local::blocking::Client;
 use rocket::{Responder, Route};
 
-#[cfg(test)]
+#[allow(dead_code)]
 pub fn test_client(routes: Vec<Route>) -> Client {
     Client::tracked(rocket::build().mount("/", routes)).unwrap()
 }

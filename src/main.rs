@@ -3,7 +3,6 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsStr;
 use std::ops::{Add, Deref};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -31,6 +30,7 @@ use uuid::Uuid;
 mod common;
 use common::Error;
 mod day_0;
+mod day_1;
 
 #[cfg(test)]
 macro_rules! test_client {
@@ -42,31 +42,6 @@ macro_rules! test_client {
         )
         .unwrap()
     };
-}
-
-#[get("/1/<nums..>")]
-fn exclusive_cube(nums: PathBuf) -> String {
-    nums.iter()
-        .filter_map(OsStr::to_str)
-        .filter_map(|s| s.parse::<i32>().ok())
-        .fold(0, |acc, num| acc ^ num)
-        .pow(3)
-        .to_string()
-}
-
-#[cfg(test)]
-#[test]
-fn exclusive_cube_test() {
-    for (expected, url) in [
-        ("1728", "/1/4/8"),
-        ("1000", "/1/10"),
-        ("27", "/1/4/5/8/10"),
-        ("-64", "/1/-3/1"),
-    ] {
-        let client = test_client!();
-        let response = client.get(url).dispatch();
-        assert_eq!(expected, response.into_string().unwrap());
-    }
 }
 
 #[derive(Deserialize)]
@@ -729,7 +704,6 @@ async fn orders_popular(db: &State<DB>) -> Result<Json<OrdersPopular>, Error> {
 
 fn routes() -> Vec<Route> {
     routes![
-        exclusive_cube,
         reindeer_cheer,
         reindeer_candy,
         elf_count,
@@ -756,6 +730,7 @@ fn routes() -> Vec<Route> {
 async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::ShuttleRocket {
     let rocket = rocket::build()
         .mount("/", day_0::routes())
+        .mount("/1", day_1::routes())
         .mount("/", routes())
         .manage(Timekeeper::new())
         .manage(DB { pool });
