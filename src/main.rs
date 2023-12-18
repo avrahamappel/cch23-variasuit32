@@ -2,20 +2,13 @@
 #![allow(clippy::no_effect_underscore_binding)]
 
 use std::collections::HashMap;
-use std::env;
-use std::ops::Add;
-use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::time::Instant;
 
 use chrono::{DateTime, Datelike, Utc, Weekday};
-use image::io::Reader;
-use image::DynamicImage;
-use rocket::form::Form;
-use rocket::fs::{relative, NamedFile, TempFile};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
-use rocket::{get, post, routes, FromForm, Route, State};
+use rocket::{get, post, routes, Route, State};
 use sqlx::prelude::*;
 use sqlx::PgPool;
 use ulid::Ulid;
@@ -25,6 +18,7 @@ mod common;
 use common::Error;
 mod day_0;
 mod day_1;
+mod day_11;
 mod day_4;
 mod day_6;
 mod day_7;
@@ -40,58 +34,6 @@ macro_rules! test_client {
         )
         .unwrap()
     };
-}
-
-#[get("/11/assets/<path..>")]
-async fn assets(path: PathBuf) -> Option<NamedFile> {
-    let path = Path::new(relative!("assets")).join(path);
-
-    NamedFile::open(path).await.ok()
-}
-
-#[derive(FromForm)]
-struct Image<'f> {
-    image: TempFile<'f>,
-}
-
-#[post("/11/red_pixels", data = "<image>")]
-async fn count_red_pixels(mut image: Form<Image<'_>>) -> Result<String, Error> {
-    let name = image.image.name().unwrap_or("some-image.png");
-    let path = env::temp_dir().join(name);
-    image.image.persist_to(path).await?;
-
-    let img = Reader::open(image.image.path().ok_or(Error {
-        message: "Temp file had no path",
-    })?)?
-    .with_guessed_format()?
-    .decode()?;
-
-    macro_rules! count_pixels {
-        ($rgb_image:ident) => {
-            count_pixels!($rgb_image, saturating_add)
-        };
-        ($rgb_image:ident, $add:ident) => {{
-            let red_pxl_count = $rgb_image
-                .pixels()
-                .filter(|p| {
-                    let [red, green, blue] = p.0;
-                    red > green.$add(blue)
-                })
-                .count();
-
-            Ok(red_pxl_count.to_string())
-        }};
-    }
-
-    match img {
-        DynamicImage::ImageRgb8(rgb_image) => count_pixels!(rgb_image),
-        DynamicImage::ImageRgb16(rgb_image) => count_pixels!(rgb_image),
-        DynamicImage::ImageRgb32F(rgb_image) => count_pixels!(rgb_image, add),
-
-        _ => Err(Error {
-            message: "Image was not RGB",
-        }),
-    }
 }
 
 struct Timekeeper {
@@ -314,8 +256,6 @@ async fn orders_popular(db: &State<DB>) -> Result<Json<OrdersPopular>, Error> {
 
 fn routes() -> Vec<Route> {
     routes![
-        assets,
-        count_red_pixels,
         store_string,
         get_string,
         ulid2uuid,
@@ -338,6 +278,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/", day_6::routes())
         .mount("/", day_7::routes())
         .mount("/", day_8::routes())
+        .mount("/", day_11::routes())
         .mount("/", routes())
         .manage(Timekeeper::new())
         .manage(DB { pool });
