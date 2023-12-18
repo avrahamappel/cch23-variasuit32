@@ -6,6 +6,14 @@ pub fn test_client(routes: Vec<Route>) -> Client {
     Client::tracked(rocket::build().mount("/", routes)).unwrap()
 }
 
+#[allow(dead_code)]
+pub fn test_client_stateful<T>(routes: Vec<Route>, state: T) -> Client
+where
+    T: Send + Sync + 'static,
+{
+    Client::tracked(rocket::build().mount("/", routes).manage(state)).unwrap()
+}
+
 #[derive(Responder, Debug)]
 #[response(status = 500)]
 pub struct Error {
