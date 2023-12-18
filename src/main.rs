@@ -16,8 +16,6 @@ use rocket::fs::{relative, NamedFile, TempFile};
 use rocket::serde::json::{serde_json, Json};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, FromForm, Route, State};
-use rustemon::client::RustemonClient;
-use rustemon::pokemon::pokemon;
 use sqlx::prelude::*;
 use sqlx::PgPool;
 use ulid::Ulid;
@@ -30,6 +28,7 @@ mod day_1;
 mod day_4;
 mod day_6;
 mod day_7;
+mod day_8;
 
 #[cfg(test)]
 macro_rules! test_client {
@@ -41,51 +40,6 @@ macro_rules! test_client {
         )
         .unwrap()
     };
-}
-
-async fn pokemon_weight_kg(id: i64) -> Result<f64, Error> {
-    let client = RustemonClient::default();
-    let pkm = pokemon::get_by_id(id, &client).await.map_err(|_| Error {
-        message: "Something went wrong",
-    })?;
-
-    #[allow(clippy::cast_precision_loss)]
-    Ok((pkm.weight as f64) / 10.0)
-}
-
-#[get("/8/weight/<id>")]
-async fn pokemon_weight(id: i64) -> Result<String, Error> {
-    Ok(pokemon_weight_kg(id).await?.to_string())
-}
-
-#[cfg(test)]
-#[test]
-fn pokemon_weight_test() {
-    let client = test_client!();
-    let response = client.get("/8/weight/25").dispatch();
-
-    assert_eq!("6", response.into_string().unwrap());
-}
-
-#[get("/8/drop/<id>")]
-async fn pokemon_drop(id: i64) -> Result<String, Error> {
-    let mass = pokemon_weight_kg(id).await?;
-    let height = 10.0;
-    let gravitational_acceleration = 9.825;
-    // Thanks ChatGPT for these formulas
-    let velocity = (2.0f64 * height * gravitational_acceleration).sqrt();
-    let momentum = velocity * mass;
-
-    Ok(momentum.to_string())
-}
-
-#[cfg(test)]
-#[test]
-fn pokemon_drop_test() {
-    let client = test_client!();
-    let response = client.get("/8/drop/25").dispatch();
-
-    assert_eq!("84.10707461325713", response.into_string().unwrap());
 }
 
 #[get("/11/assets/<path..>")]
@@ -360,8 +314,6 @@ async fn orders_popular(db: &State<DB>) -> Result<Json<OrdersPopular>, Error> {
 
 fn routes() -> Vec<Route> {
     routes![
-        pokemon_weight,
-        pokemon_drop,
         assets,
         count_red_pixels,
         store_string,
@@ -385,6 +337,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/", day_4::routes())
         .mount("/", day_6::routes())
         .mount("/", day_7::routes())
+        .mount("/", day_8::routes())
         .mount("/", routes())
         .manage(Timekeeper::new())
         .manage(DB { pool });
