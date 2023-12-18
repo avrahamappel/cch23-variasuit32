@@ -1,6 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::no_effect_underscore_binding)]
 
+use rocket_dyn_templates::Template;
 use sqlx::PgPool;
 
 mod common;
@@ -9,6 +10,7 @@ mod day_1;
 mod day_11;
 mod day_12;
 mod day_13;
+mod day_14;
 mod day_4;
 mod day_6;
 mod day_7;
@@ -30,8 +32,10 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/", day_11::routes())
         .mount("/", day_12::routes())
         .mount("/", day_13::routes())
+        .mount("/14", day_14::routes())
         .manage(Timekeeper::new())
-        .manage(DB { pool });
+        .manage(DB { pool })
+        .attach(Template::fairing());
 
     Ok(rocket.into())
 }

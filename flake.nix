@@ -46,8 +46,9 @@
             cch23-validator
           ];
 
-          buildInputs = [
-            (lib.optional stdenv.isDarwin frameworks.SystemConfiguration)
+          buildInputs = [ ] ++ lib.optionals stdenv.isDarwin [
+            frameworks.SystemConfiguration
+            frameworks.CoreServices
           ];
         };
 
