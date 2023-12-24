@@ -13,6 +13,7 @@ mod day_13;
 mod day_14;
 mod day_15;
 mod day_4;
+mod day_5;
 mod day_6;
 mod day_7;
 mod day_8;
@@ -27,6 +28,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/", day_0::routes())
         .mount("/", day_1::routes())
         .mount("/", day_4::routes())
+        .mount("/5", day_5::routes())
         .mount("/", day_6::routes())
         .mount("/", day_7::routes())
         .mount("/", day_8::routes())
