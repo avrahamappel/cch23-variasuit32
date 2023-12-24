@@ -73,18 +73,28 @@ enum NiceOrNaughty {
 #[serde(crate = "rocket::serde")]
 struct ValidationResult {
     result: NiceOrNaughty,
+    reason: Option<&'static str>,
 }
 
 impl ValidationResult {
     fn nice() -> Self {
         Self {
             result: NiceOrNaughty::nice,
+            reason: None,
         }
     }
 
     fn naughty() -> Self {
         Self {
             result: NiceOrNaughty::naughty,
+            reason: None,
+        }
+    }
+
+    fn naughty_with_reason(reason: &'static str) -> Self {
+        Self {
+            result: NiceOrNaughty::naughty,
+            reason: Some(reason),
         }
     }
 }
@@ -109,6 +119,56 @@ fn nice(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     ((&res).into(), Json(res))
 }
 
+type Reason = Result<(), (Status, &'static str)>;
+type ValidatorWithReason = fn(&str) -> Reason;
+
+fn validate_password_with_reason(password: &Password, rules: &[ValidatorWithReason]) -> Reason {
+    rules.iter().try_for_each(|r| r(&password.input))
+}
+
+fn eight_chars() -> ValidatorWithReason {
+    |input| {
+        if input.len() >= 8 {
+            Ok(())
+        } else {
+            Err((Status::BadRequest, "8 chars"))
+        }
+    }
+}
+
+fn upper_lower_digit() -> ValidatorWithReason {
+    |input| {
+        let (uppers, lowers, digits) =
+            input.chars().fold((false, false, false), |mut scores, ch| {
+                if ch.is_uppercase() {
+                    scores.0 = true;
+                }
+                if ch.is_lowercase() {
+                    scores.1 = true;
+                }
+                if ch.is_numeric() {
+                    scores.2 = true;
+                }
+                scores
+            });
+        if uppers && lowers && digits {
+            Ok(())
+        } else {
+            Err((Status::BadRequest, "more types of chars"))
+        }
+    }
+}
+
+#[post("/game", data = "<password>")]
+fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
+    let rules = [eight_chars(), upper_lower_digit()];
+    if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
+        (status, Json(ValidationResult::naughty_with_reason(reason)))
+    } else {
+        (Status::Ok, Json(ValidationResult::nice()))
+    }
+}
+
 pub fn routes() -> Vec<Route> {
-    routes![nice]
+    routes![nice, game]
 }
