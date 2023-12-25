@@ -4,6 +4,8 @@ use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{routes, Route};
 
+/// I don't like how this came out
+
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct Password {
@@ -73,6 +75,7 @@ enum NiceOrNaughty {
 #[serde(crate = "rocket::serde")]
 struct ValidationResult {
     result: NiceOrNaughty,
+    #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<&'static str>,
 }
 
