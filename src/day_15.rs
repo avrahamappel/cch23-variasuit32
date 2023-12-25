@@ -162,9 +162,21 @@ fn upper_lower_digit() -> ValidatorWithReason {
     }
 }
 
+fn five_digits() -> ValidatorWithReason {
+    |input| {
+        let count = input.chars().filter(|c| c.is_numeric()).count();
+
+        if count >= 5 {
+            Ok(())
+        } else {
+            Err((Status::BadRequest, "55555"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
-    let rules = [eight_chars(), upper_lower_digit()];
+    let rules = [eight_chars(), upper_lower_digit(), five_digits()];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
     } else {
