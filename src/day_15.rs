@@ -174,9 +174,60 @@ fn five_digits() -> ValidatorWithReason {
     }
 }
 
+fn math_is_hard() -> ValidatorWithReason {
+    |input| {
+        let groups = input.chars().fold(vec![String::new()], |mut groups, c| {
+            if c.is_numeric() {
+                groups
+                    .last_mut()
+                    .expect("Groups should never be empty")
+                    .push(c);
+            } else {
+                groups.push(String::new());
+            }
+            groups
+        });
+
+        let sum: u32 = groups
+            .iter()
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.parse::<u32>().ok())
+            .sum();
+
+        if sum == 2023 {
+            Ok(())
+        } else {
+            Err((Status::BadRequest, "math is hard"))
+        }
+    }
+}
+
+fn joyful() -> ValidatorWithReason {
+    |input| {
+        #[allow(clippy::skip_while_next)]
+        let next = input
+            .chars()
+            .skip_while(|c| *c != 'j')
+            .skip_while(|c| *c != 'o')
+            .skip_while(|c| *c != 'y')
+            .next();
+        if next.is_some() {
+            Ok(())
+        } else {
+            Err((Status::NotAcceptable, "not joyful enough"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
-    let rules = [eight_chars(), upper_lower_digit(), five_digits()];
+    let rules = [
+        eight_chars(),
+        upper_lower_digit(),
+        five_digits(),
+        math_is_hard(),
+        joyful(),
+    ];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
     } else {
