@@ -208,14 +208,24 @@ fn math_is_hard() -> ValidatorWithReason {
 
 fn joyful() -> ValidatorWithReason {
     |input| {
-        #[allow(clippy::skip_while_next)]
-        let next = input
+        let word = "joy";
+
+        // find number of instances and check none are > 1
+        let one_of_each = word
             .chars()
-            .skip_while(|c| *c != 'j')
-            .skip_while(|c| *c != 'o')
-            .skip_while(|c| *c != 'y')
-            .next();
-        if next.is_some() {
+            .map(|c| input.chars().filter(|cc| c == *cc).count())
+            .all(|n| n == 1);
+
+        // find index of each char and make sure they are in ascending order
+        let in_order = {
+            let indices: Vec<_> = word
+                .chars()
+                .map(|c| input.chars().position(|cc| c == cc))
+                .collect();
+            indices.windows(2).all(|pair| pair[0] < pair[1])
+        };
+
+        if one_of_each && in_order {
             Ok(())
         } else {
             Err((Status::NotAcceptable, "not joyful enough"))
