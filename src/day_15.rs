@@ -5,6 +5,10 @@ use rocket::serde::{Deserialize, Serialize};
 use rocket::{routes, Route};
 
 /// I don't like how this came out
+/// Rocket doesn't support validation of json request bodies out of the box
+/// Also returning an error from a `FromData` tries to forward to the next handler, there doesn't
+/// seem to be a way to return a response directly from a request guard
+/// Next time I would try using the `validator` crate and not rely on the framework
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
