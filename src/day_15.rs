@@ -233,6 +233,26 @@ fn joyful() -> ValidatorWithReason {
     }
 }
 
+fn sandwich() -> ValidatorWithReason {
+    |input| {
+        let sandwiches = input
+            .char_indices()
+            .filter(|(i, c)| {
+                c.is_alphabetic()
+                    && matches!(
+                    (input.chars().nth(i + 1), input.chars().nth(i + 2)),
+                    (Some(d), Some(e)) if d != *c && e == *c)
+            })
+            .count();
+
+        if sandwiches >= 1 {
+            Ok(())
+        } else {
+            Err((Status::UnavailableForLegalReasons, "illegal: no sandwich"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     let rules = [
@@ -241,6 +261,7 @@ fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
         five_digits(),
         math_is_hard(),
         joyful(),
+        sandwich(),
     ];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
