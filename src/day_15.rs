@@ -236,12 +236,13 @@ fn joyful() -> ValidatorWithReason {
 fn sandwich() -> ValidatorWithReason {
     |input| {
         let sandwiches = input
-            .char_indices()
+            .bytes()
+            .enumerate()
             .filter(|(i, c)| {
-                c.is_alphabetic()
+                c.is_ascii_alphabetic()
                     && matches!(
-                    (input.chars().nth(i + 1), input.chars().nth(i + 2)),
-                    (Some(d), Some(e)) if d != *c && e == *c)
+                    (input.as_bytes().get(i + 1), input.as_bytes().get(i + 2)),
+                    (Some(d), Some(e)) if d != c && e == c)
             })
             .count();
 
