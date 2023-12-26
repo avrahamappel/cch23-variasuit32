@@ -254,6 +254,20 @@ fn sandwich() -> ValidatorWithReason {
     }
 }
 
+fn math_unicode() -> ValidatorWithReason {
+    |input| {
+        let passes = input
+            .chars()
+            .any(|c| ('\u{2980}'..='\u{2BFF}').contains(&c));
+
+        if passes {
+            Ok(())
+        } else {
+            Err((Status::RangeNotSatisfiable, "outranged"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     let rules = [
@@ -263,6 +277,7 @@ fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
         math_is_hard(),
         joyful(),
         sandwich(),
+        math_unicode(),
     ];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
