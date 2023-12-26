@@ -104,6 +104,13 @@ impl ValidationResult {
             reason: Some(reason),
         }
     }
+
+    fn nice_with_reason() -> Self {
+        Self {
+            result: NiceOrNaughty::nice,
+            reason: Some("that's a nice password"),
+        }
+    }
 }
 
 impl From<&ValidationResult> for Status {
@@ -295,7 +302,7 @@ fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
     } else {
-        (Status::Ok, Json(ValidationResult::nice()))
+        (Status::Ok, Json(ValidationResult::nice_with_reason()))
     }
 }
 
