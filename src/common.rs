@@ -1,5 +1,6 @@
 use rocket::local::blocking::Client;
 use rocket::{Responder, Route};
+use sqlx::PgPool;
 
 #[allow(dead_code)]
 pub fn test_client(routes: Vec<Route>) -> Client {
@@ -50,4 +51,8 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
             message: "Couldn't get lock",
         }
     }
+}
+
+pub struct DB {
+    pub pool: PgPool,
 }

@@ -2,13 +2,8 @@ use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Route, State};
 use sqlx::prelude::*;
-use sqlx::PgPool;
 
-use crate::common::Error;
-
-pub struct DB {
-    pub pool: PgPool,
-}
+use crate::common::{Error, DB};
 
 #[get("/13/sql")]
 async fn sql(db: &State<DB>) -> Result<String, Error> {
@@ -19,7 +14,7 @@ async fn sql(db: &State<DB>) -> Result<String, Error> {
 
 #[post("/13/reset")]
 async fn reset_db(db: &State<DB>) -> Result<(), Error> {
-    db.pool.execute(include_str!("../db/schema.sql")).await?;
+    db.pool.execute(include_str!("../db/schema_13.sql")).await?;
     Ok(())
 }
 

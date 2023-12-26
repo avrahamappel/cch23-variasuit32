@@ -12,14 +12,15 @@ mod day_12;
 mod day_13;
 mod day_14;
 mod day_15;
+mod day_18;
 mod day_4;
 mod day_5;
 mod day_6;
 mod day_7;
 mod day_8;
 
+use common::DB;
 use day_12::Timekeeper;
-use day_13::DB;
 
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
@@ -37,6 +38,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/", day_13::routes())
         .mount("/14", day_14::routes())
         .mount("/15", day_15::routes())
+        .mount("/18", day_18::routes())
         .manage(Timekeeper::new())
         .manage(DB { pool })
         .attach(Template::fairing());
