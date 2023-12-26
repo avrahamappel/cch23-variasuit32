@@ -1,3 +1,5 @@
+use data_encoding::HEXLOWER;
+use ring::digest;
 use rocket::http::Status;
 use rocket::post;
 use rocket::serde::json::Json;
@@ -287,6 +289,18 @@ fn has_emojis() -> ValidatorWithReason {
     }
 }
 
+fn correct_hash() -> ValidatorWithReason {
+    |input| {
+        let digest = HEXLOWER.encode(digest::digest(&digest::SHA256, input.as_bytes()).as_ref());
+
+        if digest.bytes().last() == Some(b'a') {
+            Ok(())
+        } else {
+            Err((Status::ImATeapot, "not a coffee brewer"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     let rules = [
@@ -298,6 +312,7 @@ fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
         sandwich(),
         math_unicode(),
         has_emojis(),
+        correct_hash(),
     ];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
