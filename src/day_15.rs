@@ -268,6 +268,18 @@ fn math_unicode() -> ValidatorWithReason {
     }
 }
 
+fn has_emojis() -> ValidatorWithReason {
+    |input| {
+        let passes = input.chars().any(unic_emoji_char::is_emoji_presentation);
+
+        if passes {
+            Ok(())
+        } else {
+            Err((Status::UpgradeRequired, "😳"))
+        }
+    }
+}
+
 #[post("/game", data = "<password>")]
 fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
     let rules = [
@@ -278,6 +290,7 @@ fn game(password: Json<Password>) -> (Status, Json<ValidationResult>) {
         joyful(),
         sandwich(),
         math_unicode(),
+        has_emojis(),
     ];
     if let Err((status, reason)) = validate_password_with_reason(&password, &rules) {
         (status, Json(ValidationResult::naughty_with_reason(reason)))
