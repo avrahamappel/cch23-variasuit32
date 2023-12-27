@@ -1,5 +1,6 @@
+use rocket::futures::{StreamExt, TryFutureExt, TryStreamExt};
 use rocket::serde::json::{json, Json, Value};
-use rocket::serde::Deserialize;
+use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Route, State};
 use sqlx::{Executor, Row};
 
@@ -82,6 +83,55 @@ async fn order_totals_per_region(db: &State<DB>) -> Result<Json<Value>, Error> {
     Ok(Json(Value::Array(totals)))
 }
 
+#[derive(Serialize, Default)]
+#[serde(crate = "rocket::serde")]
+struct TopOrders {
+    region: String,
+    top_gifts: Vec<String>,
+}
+
+/// I really wanted to do this entirely in SQL with subqueries and ARRAY_AGG, but couldn't
+/// figure out how to wrangle it into a single query. The Stream version is probably
+/// the next best thing. Plus I learned a lot about the futures crate!
+#[get("/regions/top_list/<number>")]
+async fn top_orders_per_region(
+    db: &State<DB>,
+    number: usize,
+) -> Result<Json<Vec<TopOrders>>, Error> {
+    let top_orders: Vec<_> = sqlx::query_as("SELECT id, name FROM regions ORDER BY name")
+        .fetch(&db.pool)
+        .try_filter_map(|res: (i32, String)| {
+            let (id, name) = res;
+            sqlx::query_as(
+                "SELECT gift_name
+        FROM orders
+        WHERE region_id = $1
+        GROUP BY gift_name
+        ORDER BY sum(quantity) DESC, gift_name ASC",
+            )
+            .bind(id)
+            .fetch(&db.pool)
+            .take(number)
+            .map_ok(|res: (String,)| res.0)
+            .try_collect::<Vec<String>>()
+            .map_ok(|top_gifts| TopOrders {
+                region: name,
+                top_gifts,
+            })
+            .ok_into::<Option<_>>()
+        })
+        .try_collect()
+        .await?;
+
+    Ok(Json(top_orders))
+}
+
 pub fn routes() -> Vec<Route> {
-    routes![reset, place_orders, insert_regions, order_totals_per_region]
+    routes![
+        reset,
+        place_orders,
+        insert_regions,
+        order_totals_per_region,
+        top_orders_per_region
+    ]
 }
