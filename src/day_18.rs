@@ -1,8 +1,8 @@
 use rocket::futures::{StreamExt, TryFutureExt, TryStreamExt};
-use rocket::serde::json::{json, Json, Value};
+use rocket::serde::json::Json;
 use rocket::serde::{Deserialize, Serialize};
 use rocket::{get, post, routes, Route, State};
-use sqlx::{Executor, Row};
+use sqlx::prelude::*;
 
 use crate::common::{Error, DB};
 
@@ -56,31 +56,28 @@ async fn insert_regions(db: &State<DB>, regions: Json<Vec<Region>>) -> Result<()
     Ok(())
 }
 
+#[derive(Serialize, FromRow)]
+#[serde(crate = "rocket::serde")]
+struct OrderTotal {
+    region: String,
+    total: i64,
+}
+
 #[get("/regions/total")]
-async fn order_totals_per_region(db: &State<DB>) -> Result<Json<Value>, Error> {
-    let totals: Vec<_> = sqlx::query(
-        "
-        SELECT
+async fn order_totals_per_region(db: &State<DB>) -> Result<Json<Vec<OrderTotal>>, Error> {
+    let totals: Vec<OrderTotal> = sqlx::query_as(
+        "SELECT
           r.name AS region,
           SUM(o.quantity) AS total
         FROM regions r
         JOIN orders o ON o.region_id = r.id
         GROUP BY r.name
-        ORDER BY r.name ASC
-    ",
+        ORDER BY r.name ASC",
     )
     .fetch_all(&db.pool)
-    .await?
-    .iter()
-    .map(|row| {
-        json!({
-            "region": row.get::<String, _>("region"),
-            "total": row.get::<i64, _>("total")
-        })
-    })
-    .collect();
+    .await?;
 
-    Ok(Json(Value::Array(totals)))
+    Ok(Json(totals))
 }
 
 #[derive(Serialize, Default)]
