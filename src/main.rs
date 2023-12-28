@@ -22,6 +22,7 @@ mod day_8;
 
 use common::DB;
 use day_12::Timekeeper;
+use day_19::ChatState;
 
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
@@ -43,6 +44,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/19", day_19::routes())
         .manage(Timekeeper::new())
         .manage(DB { pool })
+        .manage(ChatState::new())
         .attach(Template::fairing());
 
     Ok(rocket.into())
