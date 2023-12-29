@@ -45,6 +45,7 @@
             cargo-shuttle
             cargo-watch
             cch23-validator
+            websocat # remember to use --linemode-strip-newlines so "\n" isn't passed back
           ];
 
           buildInputs = [ ] ++ lib.optionals stdenv.isDarwin [
