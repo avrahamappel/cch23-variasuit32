@@ -169,32 +169,39 @@ fn ws_room<'r>(
                 // Sending a message to the room
                 Box::pin(async {
                     while let Some(msg) = stream.next().await {
-                        if let Message::Text(text) = msg? {
-                            if let Ok(user_msg) = UserMessage::try_from(text.as_str()) {
-                                eprintln!(
-                                    "User {} sent '{}' to room {room_id}",
-                                    &user.id, &user_msg.message
-                                );
-                                if let Some(room_msg) =
-                                    RoomMessage::new(room_id, user.id.clone(), user_msg.message)
-                                {
-                                    let txs: Result<Vec<_>, Error> =
-                                        chat_state.read().map(|state| {
-                                            state
-                                                .users
-                                                .iter()
-                                                .filter(|u| u.room_id == room_id)
-                                                .map(|u| u.tx.clone())
-                                                .collect()
-                                        });
+                        match msg? {
+                            Message::Text(text) => {
+                                if let Ok(user_msg) = UserMessage::try_from(text.as_str()) {
+                                    eprintln!(
+                                        "User {} sent '{}' to room {room_id}",
+                                        &user.id, &user_msg.message
+                                    );
+                                    if let Some(room_msg) =
+                                        RoomMessage::new(room_id, user.id.clone(), user_msg.message)
+                                    {
+                                        let txs: Result<Vec<_>, Error> =
+                                            chat_state.read().map(|state| {
+                                                state
+                                                    .users
+                                                    .iter()
+                                                    .filter(|u| u.room_id == room_id)
+                                                    .map(|u| u.tx.clone())
+                                                    .collect()
+                                            });
 
-                                    if let Ok(txs) = txs {
-                                        for mut tx in txs {
-                                            let _ = tx.send(room_msg.clone()).await;
+                                        if let Ok(txs) = txs {
+                                            for mut tx in txs {
+                                                let _ = tx.send(room_msg.clone()).await;
+                                            }
                                         }
                                     }
                                 }
                             }
+                            Message::Close(c) => {
+                                println!("User {} channel closed with {c:?}", &user.id);
+                                break;
+                            }
+                            _ => {}
                         }
                     }
 
