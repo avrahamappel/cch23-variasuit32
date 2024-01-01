@@ -139,7 +139,7 @@ fn ws_room<'r>(
     chat_state: &'r rocket::State<ChatState>,
     ws: ws::WebSocket,
     room_id: u32,
-    user_id: String,
+    user_id: &'r str,
 ) -> ws::Channel<'r> {
     ws.channel(move |stream| {
         let (mut sink, mut stream) = stream.split();
@@ -149,7 +149,7 @@ fn ws_room<'r>(
                 let mut state = chat_state
                     .write()
                     .expect("couldn't get write lock on state to add user");
-                let (user, tx) = User::new(user_id);
+                let (user, tx) = User::new(user_id.to_string());
                 state
                     .users
                     .push(RoomUser::new(user.id.clone(), room_id, tx.clone()));
@@ -198,6 +198,10 @@ fn ws_room<'r>(
                 // Receiving a message from the room
                 Box::pin(async {
                     while let Some(room_msg) = user.rx.next().await {
+                        if let Ok(mut state) = chat_state.write() {
+                            state.views += 1;
+                        }
+
                         sink.send(room_msg.into())
                             .await
                             .expect("couldn't receive msg from room");
