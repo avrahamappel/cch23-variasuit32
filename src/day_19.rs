@@ -30,31 +30,25 @@ fn ws_ping(ws: ws::WebSocket) -> ws::Stream![] {
 
 struct User {
     id: String,
-    channel: (Sender<RoomMessage>, Receiver<RoomMessage>),
+    rx: Receiver<RoomMessage>,
 }
 
 impl User {
-    fn new(id: String) -> Self {
-        Self {
-            id,
-            channel: mpsc::channel(MSG_CHAR_LIMIT),
-        }
+    fn new(id: String) -> (Self, Sender<RoomMessage>) {
+        let (tx, rx) = mpsc::channel(MSG_CHAR_LIMIT);
+        (Self { id, rx }, tx)
     }
 }
 
 struct RoomUser {
     id: String,
     room_id: u32,
-    sender: Sender<RoomMessage>,
+    tx: Sender<RoomMessage>,
 }
 
 impl RoomUser {
-    fn new(id: String, room_id: u32, sender: Sender<RoomMessage>) -> Self {
-        Self {
-            id,
-            room_id,
-            sender,
-        }
+    fn new(id: String, room_id: u32, tx: Sender<RoomMessage>) -> Self {
+        Self { id, room_id, tx }
     }
 }
 
@@ -147,18 +141,20 @@ fn ws_room<'r>(
     room_id: u32,
     user_id: String,
 ) -> ws::Channel<'r> {
-    ws.channel(move |mut stream| {
-        Box::pin(async {
+    ws.channel(move |stream| {
+        let (mut sink, mut stream) = stream.split();
+        Box::pin(async move {
             // Connect user to room
-            let mut state = chat_state
-                .write()
-                .expect("couldn't get write lock on state to add user");
-            let mut user = User::new(user_id);
-            state.users.push(RoomUser::new(
-                user.id.clone(),
-                room_id,
-                user.channel.0.clone(),
-            ));
+            let mut user = {
+                let mut state = chat_state
+                    .write()
+                    .expect("couldn't get write lock on state to add user");
+                let (user, tx) = User::new(user_id);
+                state
+                    .users
+                    .push(RoomUser::new(user.id.clone(), room_id, tx.clone()));
+                user
+            };
 
             let res = future::join(
                 // Sending a message to the room
@@ -169,31 +165,47 @@ fn ws_room<'r>(
                                 if let Some(room_msg) =
                                     RoomMessage::new(user.id.clone(), user_msg.message)
                                 {
-                                    if let Ok(mut state) = chat_state.write() {
-                                        for u in &mut state.users {
-                                            u.sender.send(room_msg.clone());
+                                    let txs: Result<Vec<_>, Error> =
+                                        chat_state.read().map(|state| {
+                                            state
+                                                .users
+                                                .iter()
+                                                .filter(|u| u.room_id == room_id)
+                                                .map(|u| u.tx.clone())
+                                                .collect()
+                                        });
+
+                                    if let Ok(txs) = txs {
+                                        for mut tx in txs {
+                                            tx.send(room_msg.clone())
+                                                .await
+                                                .expect("couldn't send msg to user");
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
+                    // Log user out of room when socket closes
+                    if let Ok(mut state) = chat_state.write() {
+                        eprintln!("logging out {}", &user.id);
+                        state.users.retain(|u| u.id != user.id);
+                    }
+
                     Ok(())
                 }),
                 // Receiving a message from the room
                 Box::pin(async {
-                    while let Some(room_msg) = user.channel.1.next().await {
-                        stream.send(room_msg.into()).await;
+                    while let Some(room_msg) = user.rx.next().await {
+                        sink.send(room_msg.into())
+                            .await
+                            .expect("couldn't receive msg from room");
                     }
                     Ok(())
                 }),
             )
             .await;
-
-            // Log user out of room
-            if let Ok(mut state) = chat_state.write() {
-                state.users.retain(|u| u.id != user.id);
-            }
 
             match res {
                 (Err(e), _) | (_, Err(e)) => Err(e),
