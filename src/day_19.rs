@@ -131,6 +131,7 @@ fn reset(chat_state: &rocket::State<ChatState>) -> Result<(), Error> {
 #[get("/views")]
 fn views(chat_state: &rocket::State<ChatState>) -> Result<String, Error> {
     let views = chat_state.read()?.views;
+    println!("{views} views");
     Ok(views.to_string())
 }
 
@@ -177,9 +178,7 @@ fn ws_room<'r>(
 
                                     if let Ok(txs) = txs {
                                         for mut tx in txs {
-                                            tx.send(room_msg.clone())
-                                                .await
-                                                .expect("couldn't send msg to user");
+                                            let _ = tx.send(room_msg.clone()).await;
                                         }
                                     }
                                 }
@@ -199,12 +198,14 @@ fn ws_room<'r>(
                 Box::pin(async {
                     while let Some(room_msg) = user.rx.next().await {
                         if let Ok(mut state) = chat_state.write() {
+                            if !state.users.iter().any(|u| u.id == user.id) {
+                                continue;
+                            }
+
                             state.views += 1;
                         }
 
-                        sink.send(room_msg.into())
-                            .await
-                            .expect("couldn't receive msg from room");
+                        let _ = sink.send(room_msg.into()).await;
                     }
                     Ok(())
                 }),
