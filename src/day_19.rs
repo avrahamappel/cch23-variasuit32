@@ -28,26 +28,40 @@ fn ws_ping(ws: ws::WebSocket) -> ws::Stream![] {
     }
 }
 
-struct User<'u> {
-    id: &'u str,
-    room_id: u32,
-    channel: (Sender<RoomMessage<'u>>, Receiver<RoomMessage<'u>>),
+struct User {
+    id: String,
+    channel: (Sender<RoomMessage>, Receiver<RoomMessage>),
 }
 
-impl<'u> User<'u> {
-    fn new(id: &'u str, room_id: u32) -> Self {
+impl User {
+    fn new(id: String) -> Self {
         Self {
             id,
-            room_id,
             channel: mpsc::channel(MSG_CHAR_LIMIT),
         }
     }
 }
 
+struct RoomUser {
+    id: String,
+    room_id: u32,
+    sender: Sender<RoomMessage>,
+}
+
+impl RoomUser {
+    fn new(id: String, room_id: u32, sender: Sender<RoomMessage>) -> Self {
+        Self {
+            id,
+            room_id,
+            sender,
+        }
+    }
+}
+
 #[derive(Default)]
-struct State<'u> {
+struct State {
     views: u32,
-    users: Vec<&'u User<'u>>,
+    users: Vec<RoomUser>,
 }
 
 #[derive(Deserialize)]
@@ -64,19 +78,17 @@ impl TryFrom<&str> for UserMessage {
     }
 }
 
-
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(crate = "rocket::serde")]
-struct RoomMessage<'u> {
-    user: &'u str,
+struct RoomMessage {
+    user: String,
     message: String,
 }
 
-
 const MSG_CHAR_LIMIT: usize = 128;
 
-impl<'u> RoomMessage<'u> {
-    fn new(user: &'u str, message: String) -> Option<Self> {
+impl RoomMessage {
+    fn new(user: String, message: String) -> Option<Self> {
         if message.chars().count() > MSG_CHAR_LIMIT {
             None
         } else {
@@ -85,7 +97,7 @@ impl<'u> RoomMessage<'u> {
     }
 }
 
-impl<'u> From<RoomMessage<'u>> for Message {
+impl From<RoomMessage> for Message {
     fn from(value: RoomMessage) -> Self {
         Message::text(
             serde_json::to_string(&value).expect("JSON serialization failed for some reason"),
@@ -93,9 +105,8 @@ impl<'u> From<RoomMessage<'u>> for Message {
     }
 }
 
-
 pub struct ChatState {
-    state: RwLock<State<'static>>,
+    state: RwLock<State>,
 }
 
 impl ChatState {
@@ -134,7 +145,7 @@ fn ws_room<'r>(
     chat_state: &'r rocket::State<ChatState>,
     ws: ws::WebSocket,
     room_id: u32,
-    user_id: &'r str,
+    user_id: String,
 ) -> ws::Channel<'r> {
     ws.channel(move |mut stream| {
         Box::pin(async {
@@ -142,20 +153,25 @@ fn ws_room<'r>(
             let mut state = chat_state
                 .write()
                 .expect("couldn't get write lock on state to add user");
-            let user = User::new(user_id, room_id);
-            state.users.push(&user);
+            let mut user = User::new(user_id);
+            state.users.push(RoomUser::new(
+                user.id.clone(),
+                room_id,
+                user.channel.0.clone(),
+            ));
 
             let res = future::join(
+                // Sending a message to the room
                 Box::pin(async {
                     while let Some(msg) = stream.next().await {
                         if let Message::Text(text) = msg? {
-                            // Sending a message to the room
                             if let Ok(user_msg) = UserMessage::try_from(text.as_str()) {
-                                if let Some(room_msg) = RoomMessage::new(user_id, user_msg.message)
+                                if let Some(room_msg) =
+                                    RoomMessage::new(user.id.clone(), user_msg.message)
                                 {
-                                    if let Ok(state) = chat_state.read() {
-                                        for user in state.users {
-                                            user.channel.0.send(room_msg);
+                                    if let Ok(mut state) = chat_state.write() {
+                                        for u in &mut state.users {
+                                            u.sender.send(room_msg.clone());
                                         }
                                     }
                                 }
@@ -164,8 +180,8 @@ fn ws_room<'r>(
                     }
                     Ok(())
                 }),
+                // Receiving a message from the room
                 Box::pin(async {
-                    // Receiving a message from the room
                     while let Some(room_msg) = user.channel.1.next().await {
                         stream.send(room_msg.into()).await;
                     }
@@ -174,8 +190,9 @@ fn ws_room<'r>(
             )
             .await;
 
+            // Log user out of room
             if let Ok(mut state) = chat_state.write() {
-                state.users.retain(|u| u.id != user_id);
+                state.users.retain(|u| u.id != user.id);
             }
 
             match res {
