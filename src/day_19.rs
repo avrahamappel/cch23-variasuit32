@@ -40,6 +40,7 @@ impl User {
     }
 }
 
+#[derive(Debug)]
 struct RoomUser {
     id: String,
     room_id: u32,
@@ -72,9 +73,11 @@ impl TryFrom<&str> for UserMessage {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(crate = "rocket::serde")]
 struct RoomMessage {
+    #[serde(skip)]
+    room_id: u32,
     user: String,
     message: String,
 }
@@ -82,11 +85,15 @@ struct RoomMessage {
 const MSG_CHAR_LIMIT: usize = 128;
 
 impl RoomMessage {
-    fn new(user: String, message: String) -> Option<Self> {
+    fn new(room_id: u32, user: String, message: String) -> Option<Self> {
         if message.chars().count() > MSG_CHAR_LIMIT {
             None
         } else {
-            Some(Self { user, message })
+            Some(Self {
+                room_id,
+                user,
+                message,
+            })
         }
     }
 }
@@ -154,6 +161,7 @@ fn ws_room<'r>(
                 state
                     .users
                     .push(RoomUser::new(user.id.clone(), room_id, tx.clone()));
+                eprintln!("added user {} to room {room_id}", &user.id);
                 user
             };
 
@@ -163,8 +171,12 @@ fn ws_room<'r>(
                     while let Some(msg) = stream.next().await {
                         if let Message::Text(text) = msg? {
                             if let Ok(user_msg) = UserMessage::try_from(text.as_str()) {
+                                eprintln!(
+                                    "User {} sent '{}' to room {room_id}",
+                                    &user.id, &user_msg.message
+                                );
                                 if let Some(room_msg) =
-                                    RoomMessage::new(user.id.clone(), user_msg.message)
+                                    RoomMessage::new(room_id, user.id.clone(), user_msg.message)
                                 {
                                     let txs: Result<Vec<_>, Error> =
                                         chat_state.read().map(|state| {
@@ -198,10 +210,16 @@ fn ws_room<'r>(
                 Box::pin(async {
                     while let Some(room_msg) = user.rx.next().await {
                         if let Ok(mut state) = chat_state.write() {
-                            if !state.users.iter().any(|u| u.id == user.id) {
+                            // Check that the user is still in the room
+                            if !state
+                                .users
+                                .iter()
+                                .any(|u| u.room_id == room_msg.room_id && u.id == user.id)
+                            {
                                 continue;
                             }
 
+                            eprintln!("User {} viewed message '{}'", &user.id, &room_msg.message);
                             state.views += 1;
                         }
 
