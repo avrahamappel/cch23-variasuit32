@@ -1,8 +1,8 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Seek;
 use std::path::Path;
 
-use git2::{ObjectType, Repository, Sort};
+use git2::{Commit, ObjectType, Repository, Sort, Tree};
 use rocket::fs::TempFile;
 use rocket::{post, routes, Route};
 use tar::Archive;
@@ -31,14 +31,14 @@ fn tar_files_size(tarball: TempFile) -> Result<String, Error> {
     Ok(sum.to_string())
 }
 
-#[post("/cookie", data = "<tarball>")]
-fn find_cookie(tarball: TempFile) -> Result<String, Error> {
-    let path = tarball.path().expect("temp file had no path");
+fn open_repo(path: &Path) -> Result<Repository, Error> {
     let file = File::open(path)?;
     let mut arc = Archive::new(file);
 
     let dir = path.parent().unwrap_or(Path::new(""));
-    arc.unpack(dir)?;
+    let dir = dir.join("cch23-git-repo");
+    fs::remove_dir_all(&dir)?;
+    arc.unpack(&dir)?;
 
     let mut file = arc.into_inner();
     file.rewind()?;
@@ -47,15 +47,47 @@ fn find_cookie(tarball: TempFile) -> Result<String, Error> {
     let gitdir = first_entry.path()?.to_path_buf();
 
     let repo = Repository::open_bare(format!("{}/{}", dir.display(), gitdir.display()))?;
+    Ok(repo)
+}
 
+fn filter_tree(tree: Tree, rev: &Commit, repo: &Repository) -> Option<String> {
+    tree.iter()
+        .filter_map(|leaf| match leaf.kind()? {
+            ObjectType::Tree => {
+                let Ok(tree) = leaf.to_object(repo).and_then(|obj| obj.peel_to_tree()) else {
+                    return None;
+                };
+
+                filter_tree(tree, rev, repo)
+            }
+            ObjectType::Blob => {
+                if !leaf.name()?.contains("santa.txt") {
+                    return None;
+                }
+
+                if !leaf
+                    .to_object(repo)
+                    .and_then(|obj| obj.peel_to_blob())
+                    .is_ok_and(|blob| String::from_utf8_lossy(blob.content()).contains("COOKIE"))
+                {
+                    return None;
+                }
+
+                let commit = format!("{} {}", rev.author().name().unwrap_or_default(), rev.id());
+
+                Some(commit)
+            }
+            _ => None,
+        })
+        .take(1)
+        .next()
+}
+
+fn find_commit(repo: Repository) -> Result<String, Error> {
     let mut revwalk = repo.revwalk()?;
 
-    for refr in repo
-        .references()?
-        .filter_map(Result::ok)
-        .filter_map(|r| r.name().map(str::to_string))
-    {
-        revwalk.push_ref(&refr)?;
+    for refname in repo.references()?.names().filter_map(Result::ok) {
+        revwalk.push_ref(refname)?;
     }
 
     revwalk.set_sorting(Sort::TIME)?;
@@ -65,24 +97,18 @@ fn find_cookie(tarball: TempFile) -> Result<String, Error> {
         .filter_map(|oid| repo.find_commit(oid).ok())
         .find_map(|rev| {
             let Ok(tree) = rev.tree() else { return None };
-
-            tree.iter()
-                .filter(|leaf| matches!(leaf.kind(), Some(ObjectType::Blob)))
-                .filter(|leaf| leaf.name().is_some_and(|name| name.contains("santa.txt")))
-                .filter(|leaf| {
-                    leaf.to_object(&repo)
-                        .and_then(|obj| obj.peel_to_blob())
-                        .is_ok_and(|blob| {
-                            String::from_utf8_lossy(blob.content()).contains("COOKIE")
-                        })
-                })
-                .map(move |_| format!("{} {}", rev.author().name().unwrap_or_default(), rev.id()))
-                .take(1)
-                .next()
+            filter_tree(tree, &rev, &repo)
         })
         .unwrap_or_default();
 
     Ok(commit)
+}
+
+#[post("/cookie", data = "<tarball>")]
+fn find_cookie(tarball: TempFile) -> Result<String, Error> {
+    let path = tarball.path().expect("temp file had no path");
+    let repo = open_repo(path)?;
+    find_commit(repo)
 }
 
 pub fn routes() -> Vec<Route> {
