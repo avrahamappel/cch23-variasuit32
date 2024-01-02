@@ -48,7 +48,7 @@
             websocat # remember to use --linemode-strip-newlines so "\n" isn't passed back
           ];
 
-          buildInputs = [ ] ++ lib.optionals stdenv.isDarwin [
+          buildInputs = with pkgs; [ pkg-config openssl ] ++ lib.optionals stdenv.isDarwin [
             frameworks.SystemConfiguration
             frameworks.CoreServices
           ];

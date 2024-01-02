@@ -42,6 +42,7 @@ impl_from_error!(std::num::ParseIntError, "Error parsing integer");
 impl_from_error!(chrono::OutOfRange, "Number out of range of time type");
 impl_from_error!(sqlx::Error, "Postgres error");
 impl_from_error!(rocket::serde::json::serde_json::Error, "JSON error");
+impl_from_error!(git2::Error, "Git error");
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(value: std::sync::PoisonError<T>) -> Self {
