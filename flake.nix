@@ -23,15 +23,15 @@
 
         cch23-validator = buildRustPackage rec {
           pname = "cch23-validator";
-          version = "22.0.0";
+          version = "22.0.1";
 
           src = pkgs.fetchzip {
             url = "https://crates.io/api/v1/crates/${pname}/${version}/download";
-            hash = "sha256-sVhPab3El+Il3BiCs6hR9uMy6xi7JpRvXHPP7Ta0PB4=";
+            hash = "sha256-LLn1zo6N53bjzpQxOT6VyKN+9cDO516fen3EQf8fWDc=";
             extension = "tar";
           };
 
-          cargoHash = "sha256-9np7DwLpf6gNjrRG4l5YtWEZOXidPpuZ22KGcR08iV4=";
+          cargoHash = "sha256-xxhc+wBP+Rr/+a2lbZsadpA+HnjZKQi7Ye2QiEv5aTU=";
 
           buildInputs = [
             (lib.optional stdenv.isDarwin frameworks.SystemConfiguration)
