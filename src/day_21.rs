@@ -1,86 +1,27 @@
-use std::str::FromStr;
-
 use rocket::{get, routes, Route};
+use s2::cellid::CellID;
+use s2::latlng::LatLng;
 
 use crate::common::Error;
 
-fn decimal_to_dms<'dir>(
-    degrees: f64,
-    neg_sign: &'dir str,
-    pos_sign: &'dir str,
-) -> (u32, u32, f64, &'dir str) {
+fn decimal_to_dms<'dir>(degrees: f64, neg_sign: &'dir str, pos_sign: &'dir str) -> String {
     let d = degrees.trunc();
     let m = (degrees.fract() * 60.0).trunc();
     let s = 3600.0 * degrees.fract() - m * 60.0;
 
     let dir = if degrees >= 0.0 { pos_sign } else { neg_sign };
 
-    (d.abs() as u32, m.abs() as u32, s.abs(), dir)
-}
-
-struct S2Cell(u64);
-
-impl FromStr for S2Cell {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        u64::from_str_radix(s, 2).map(Self).map_err(Error::from)
-    }
-}
-
-impl S2Cell {
-    fn to_dms_string(&self) -> String {
-        let (lat, long) = self.to_lat_long();
-        let (latd, latm, lats, latdir) = decimal_to_dms(lat, "E", "W");
-        let (lngd, lngm, lngs, lngdir) = decimal_to_dms(long, "N", "S");
-
-        format!("{lngd}°{lngm}'{lngs:.3}''{lngdir} {latd}°{latm}'{lats:.3}''{latdir}")
-    }
-
-    fn to_lat_long(&self) -> (f64, f64) {
-        let level = self.get_level();
-
-        let mut lat_min = -90.0;
-        let mut lat_max = 90.0;
-        let mut lng_min = -180.0;
-        let mut lng_max = 180.0;
-
-        for i in 0..level {
-            let mask: u64 = 1 << (2 * (level - i - 1));
-            if self.0 & mask == 0 {
-                lat_max = (lat_min + lat_max) / 2.0;
-            } else {
-                lat_min = (lat_min + lat_max) / 2.0;
-            }
-
-            let mask: u64 = 1 << (2 * (level - i - 1) + 1);
-            if self.0 & mask == 0 {
-                lng_max = (lng_min + lng_max) / 2.0;
-            } else {
-                lng_min = (lng_min + lng_max) / 2.0;
-            }
-        }
-        // Determine center lat long
-        let lat_cntr = (lat_min + lat_max) / 2.0;
-        let lng_cntr = (lng_min + lng_max) / 2.0;
-
-        (lat_cntr, lng_cntr)
-    }
-
-    fn get_level(&self) -> u32 {
-        let mut level = 0;
-        let mut id = self.0;
-        while id > 0 {
-            id >>= 2;
-            level += 1;
-        }
-        level
-    }
+    format!("{:.0}°{:.0}'{:.3}''{}", d.abs(), m.abs(), s.abs(), dir)
 }
 
 #[get("/coords/<coords>")]
 fn coords(coords: &str) -> Result<String, Error> {
-    coords.parse::<S2Cell>().map(|cell| cell.to_dms_string())
+    let cellid = u64::from_str_radix(coords, 2).map_err(Error::from)?;
+    let latlng: LatLng = CellID(cellid).into();
+    let lat_str = decimal_to_dms(latlng.lat.deg(), "S", "N");
+    let lng_str = decimal_to_dms(latlng.lng.deg(), "W", "E");
+
+    Ok(format!("{lat_str} {lng_str}"))
 }
 
 pub fn routes() -> Vec<Route> {
@@ -89,18 +30,7 @@ pub fn routes() -> Vec<Route> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::common::test_client;
-
-    #[test]
-    fn test_decimal_to_dms() {
-        for (dec, dms) in [
-            (37.50715714646503, (37, 30, 25.765727274119854, "pos")),
-            (-99.62292075622827, (99, 37, 22.514722421765327, "neg")),
-        ] {
-            assert_eq!(dms, decimal_to_dms(dec, "neg", "pos"));
-        }
-    }
 
     #[test]
     fn test_coords() {
