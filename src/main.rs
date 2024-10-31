@@ -15,6 +15,7 @@ mod day_15;
 mod day_18;
 mod day_19;
 mod day_20;
+mod day_21;
 mod day_4;
 mod day_5;
 mod day_6;
@@ -44,6 +45,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .mount("/18", day_18::routes())
         .mount("/19", day_19::routes())
         .mount("/20", day_20::routes())
+        .mount("/21", day_21::routes())
         .manage(Timekeeper::new())
         .manage(DB { pool })
         .manage(ChatState::new())
