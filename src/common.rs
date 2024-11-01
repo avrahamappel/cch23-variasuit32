@@ -2,12 +2,12 @@ use rocket::local::blocking::Client;
 use rocket::{Responder, Route};
 use sqlx::PgPool;
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn test_client(routes: Vec<Route>) -> Client {
     Client::tracked(rocket::build().mount("/", routes)).unwrap()
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn test_client_stateful<T>(routes: Vec<Route>, state: T) -> Client
 where
     T: Send + Sync + 'static,

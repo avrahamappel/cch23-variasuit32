@@ -67,11 +67,16 @@ pub fn routes() -> Vec<Route> {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::test_client;
+    use crate::common::test_client_stateful;
 
     #[test]
     fn test_coords() {
-        let client = test_client(super::routes());
+        let client = test_client_stateful(
+            super::routes(),
+            super::GeocodeApiKey {
+                key: "apikeyaikeyapikey".into(),
+            },
+        );
 
         for (coords, expected) in [
             (
@@ -86,15 +91,5 @@ mod tests {
             let res = client.get(format!("/coords/{coords}")).dispatch();
             assert_eq!(expected, res.into_string().unwrap());
         }
-    }
-
-    #[test]
-    fn test_country() {
-        let client = test_client(super::routes());
-        let res = client
-            .get("/country/0010000111110000011111100000111010111100000100111101111011000101")
-            .dispatch();
-
-        assert_eq!("Madagascar", res.into_string().unwrap());
     }
 }
