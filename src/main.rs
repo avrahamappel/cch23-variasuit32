@@ -25,10 +25,15 @@ mod day_8;
 use common::DB;
 use day_12::Timekeeper;
 use day_19::ChatState;
+use day_21::GeocodeApiKey;
 
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
-async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::ShuttleRocket {
+async fn main(
+    #[shuttle_shared_db::Postgres] pool: PgPool,
+    #[shuttle_secrets::Secrets] secrets: shuttle_secrets::SecretStore,
+) -> shuttle_rocket::ShuttleRocket {
+    let key = secrets.get("GEOCODE_API_KEY").expect("Couldn't get secret");
     let rocket = rocket::build()
         .mount("/", day_0::routes())
         .mount("/", day_1::routes())
@@ -49,6 +54,7 @@ async fn main(#[shuttle_shared_db::Postgres] pool: PgPool) -> shuttle_rocket::Sh
         .manage(Timekeeper::new())
         .manage(DB { pool })
         .manage(ChatState::new())
+        .manage(GeocodeApiKey { key })
         .attach(Template::fairing());
 
     Ok(rocket.into())

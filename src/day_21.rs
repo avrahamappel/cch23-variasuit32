@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use rocket::{get, routes, Route};
 use s2::cellid::CellID;
 use s2::latlng::LatLng;
+use serde::Deserialize;
 
 use crate::common::Error;
 
@@ -24,8 +27,42 @@ fn coords(coords: &str) -> Result<String, Error> {
     Ok(format!("{lat_str} {lng_str}"))
 }
 
+pub struct GeocodeApiKey {
+    pub key: String,
+}
+
+#[derive(Deserialize)]
+pub struct GeocodeResponse {
+    pub address: Address,
+}
+
+#[derive(Deserialize)]
+pub struct Address {
+    pub country: String,
+}
+
+#[get("/country/<coords>")]
+async fn country(coords: &str, api_key: &rocket::State<GeocodeApiKey>) -> Result<String, Error> {
+    let cellid = u64::from_str_radix(coords, 2).map_err(Error::from)?;
+    let latlng: LatLng = CellID(cellid).into();
+
+    let url = format!(
+        "https://geocode.maps.co/reverse?lat={}&lon={}&api_key={}",
+        latlng.lat.deg(),
+        latlng.lng.deg(),
+        api_key.key
+    );
+
+    // API key only allows one request per second
+    std::thread::sleep(Duration::from_secs(1));
+
+    let res: GeocodeResponse = reqwest::get(url).await?.json().await?;
+
+    Ok(res.address.country)
+}
+
 pub fn routes() -> Vec<Route> {
-    routes![coords]
+    routes![coords, country]
 }
 
 #[cfg(test)]
@@ -49,5 +86,15 @@ mod tests {
             let res = client.get(format!("/coords/{coords}")).dispatch();
             assert_eq!(expected, res.into_string().unwrap());
         }
+    }
+
+    #[test]
+    fn test_country() {
+        let client = test_client(super::routes());
+        let res = client
+            .get("/country/0010000111110000011111100000111010111100000100111101111011000101")
+            .dispatch();
+
+        assert_eq!("Madagascar", res.into_string().unwrap());
     }
 }

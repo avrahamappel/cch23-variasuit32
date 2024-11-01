@@ -9,3 +9,5 @@ result-*
 
 # Rustemon cache
 /http-cacache/
+
+/Secrets.toml
