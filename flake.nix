@@ -2,10 +2,9 @@
   description = "Rust Template";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/07af2a322744d7a791f6e7424fc6e81eb6877a95";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
-    rust-overlay.inputs.flake-utils.follows = "flake-utils";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 

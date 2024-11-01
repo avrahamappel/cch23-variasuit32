@@ -31,7 +31,7 @@ use day_21::GeocodeApiKey;
 #[shuttle_runtime::main]
 async fn main(
     #[shuttle_shared_db::Postgres] pool: PgPool,
-    #[shuttle_secrets::Secrets] secrets: shuttle_secrets::SecretStore,
+    #[shuttle_runtime::Secrets] secrets: shuttle_runtime::SecretStore,
 ) -> shuttle_rocket::ShuttleRocket {
     let key = secrets.get("GEOCODE_API_KEY").expect("Couldn't get secret");
     let rocket = rocket::build()
