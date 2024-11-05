@@ -2,7 +2,7 @@
 #![allow(clippy::no_effect_underscore_binding)]
 
 use rocket_dyn_templates::Template;
-use sqlx::PgPool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 mod common;
 mod day_0;
@@ -31,9 +31,13 @@ use day_21::GeocodeApiKey;
 #[allow(clippy::unused_async)]
 #[shuttle_runtime::main]
 async fn main(
-    #[shuttle_shared_db::Postgres] pool: PgPool,
     #[shuttle_runtime::Secrets] secrets: shuttle_runtime::SecretStore,
 ) -> shuttle_rocket::ShuttleRocket {
+    // Create an in-memory SQLite database
+    let pool = SqlitePoolOptions::new()
+        .connect("sqlite::memory:")
+        .await
+        .expect("Couldn't start sqlite pool");
     let key = secrets.get("GEOCODE_API_KEY").expect("Couldn't get secret");
     let rocket = rocket::build()
         .mount("/", day_0::routes())

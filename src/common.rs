@@ -3,7 +3,7 @@ use rocket::local::blocking::Client;
 use rocket::Responder;
 #[cfg(test)]
 use rocket::Route;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[cfg(test)]
 pub fn test_client(routes: Vec<Route>) -> Client {
@@ -60,5 +60,5 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 }
 
 pub struct DB {
-    pub pool: PgPool,
+    pub pool: SqlitePool,
 }
