@@ -16,6 +16,7 @@ mod day_18;
 mod day_19;
 mod day_20;
 mod day_21;
+mod day_22;
 mod day_4;
 mod day_5;
 mod day_6;
@@ -51,6 +52,7 @@ async fn main(
         .mount("/19", day_19::routes())
         .mount("/20", day_20::routes())
         .mount("/21", day_21::routes())
+        .mount("/22", day_22::routes())
         .manage(Timekeeper::new())
         .manage(DB { pool })
         .manage(ChatState::new())

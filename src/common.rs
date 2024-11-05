@@ -1,5 +1,8 @@
+#[cfg(test)]
 use rocket::local::blocking::Client;
-use rocket::{Responder, Route};
+use rocket::Responder;
+#[cfg(test)]
+use rocket::Route;
 use sqlx::PgPool;
 
 #[cfg(test)]
