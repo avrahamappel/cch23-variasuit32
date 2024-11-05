@@ -172,10 +172,6 @@ fn ws_room<'r>(
                         match msg? {
                             Message::Text(text) => {
                                 if let Ok(user_msg) = UserMessage::try_from(text.as_str()) {
-                                    eprintln!(
-                                        "User {} sent '{}' to room {room_id}",
-                                        &user.id, &user_msg.message
-                                    );
                                     if let Some(room_msg) =
                                         RoomMessage::new(room_id, user.id.clone(), user_msg.message)
                                     {
@@ -226,7 +222,6 @@ fn ws_room<'r>(
                                 continue;
                             }
 
-                            eprintln!("User {} viewed message '{}'", &user.id, &room_msg.message);
                             state.views += 1;
                         }
 
