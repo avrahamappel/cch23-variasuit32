@@ -37,14 +37,14 @@ impl Timekeeper {
 }
 
 #[post("/12/save/<string>")]
-fn store_string(timekeeper: &State<Timekeeper>, string: String) -> Result<(), Error> {
-    timekeeper.put(string)?;
+fn store_string(timekeeper: &State<Timekeeper>, string: &str) -> Result<(), Error> {
+    timekeeper.put(string.to_string())?;
     Ok(())
 }
 
 #[get("/12/load/<string>")]
-fn get_string(timekeeper: &State<Timekeeper>, string: String) -> Option<String> {
-    timekeeper.get(string).map(|u| u.to_string())
+fn get_string(timekeeper: &State<Timekeeper>, string: &str) -> Option<String> {
+    timekeeper.get(string.to_string()).map(|u| u.to_string())
 }
 
 #[post("/12/ulids", data = "<ulids>")]
